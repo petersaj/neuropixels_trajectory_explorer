@@ -36,3 +36,14 @@ A video demo of usage (on a slightly older version) is here: https://www.youtube
 - 3D areas: pick an area (through a comprehensive list, search or hierarchy) to draw in 3D on the atlas
 - Toggle visibility: turn on/off visibility ('Slice' switches between displaying anatomy, CCF-parsed regions, or nothing)
 - - Other: not currently in regular use
+
+
+### Experimetal use of Neuropixels coordinates
+The coordinates of the probe are displayed above the atlas relative to *bregma (anterior/posterior and medial/lateral)* and the *brain surface (depth, axis along the probe)*
+
+The angles of the manipulator are displated relative to the *midline (azimuth/polar angle), where 0 degrees means the probe is coming straight from behind the mouse*, and to the *horizontal (pitch angle), where 90 degrees means the probe is going straight downward*.
+
+During the experiment:
+- The manipulator angles should be set relative to the midline (azimuth/polar angle) and horizontal (pitch angle)
+- The probe should be positioned over bregma and the AP/ML coordinates should be zeroed, then the probe should lightly touch the brain in the desired insertion spot and the probe-axis coordinate should be zeroed
+- The probe should be lowered along the probe-axis until it reaches the desired probe-axis coordinate
