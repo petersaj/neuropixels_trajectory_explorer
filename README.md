@@ -24,3 +24,12 @@ neuropixels_trajectory_explorer
 ## Instructions
 ### Overview of interface
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
+- Left: control panel with directions for moving the probe and buttons to change what is displayed
+- Middle: the atlas and probe, the view can be rotated by clicking and dragging
+- Right: the brain areas the probe passes through in it's current orientation
+
+![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/control_panel.PNG)
+- Probe controls: arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis), manually enter position
+- 3D areas: pick an area (through a comprehensive list, search or hierarchy) to draw in 3D on the atlas
+- Toggle visibility: turn on/off visibility ('Slice' switches between displaying anatomy, CCF-parsed regions, or nothing)
+- - Other: not currently in regular use
