@@ -22,3 +22,5 @@ neuropixels_trajectory_explorer
 - The first time the explorer is run, you will be prompted to select the folder where you installed the CCF atlas
 
 ## Instructions
+### Overview of interface
+![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
