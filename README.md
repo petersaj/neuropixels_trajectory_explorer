@@ -23,4 +23,4 @@ neuropixels_trajectory_explorer
 
 ## Instructions
 ### Overview of interface
-![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/master/wiki/histology/overview.png)
+![image](https://github.com/petersaj/neuropixels_trajectory_explorer/tree/main/wiki/overview.png)
