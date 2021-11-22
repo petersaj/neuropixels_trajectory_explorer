@@ -291,20 +291,24 @@ switch eventdata.Key
 end
 
 % Draw updated probe
-% (AP/ML)
-set(gui_data.handles.probe_ref_line,'XData',get(gui_data.handles.probe_ref_line,'XData') + ml_offset);
-set(gui_data.handles.probe_line,'XData',get(gui_data.handles.probe_line,'XData') + ml_offset);
-set(gui_data.handles.probe_ref_line,'YData',get(gui_data.handles.probe_ref_line,'YData') + ap_offset);
-set(gui_data.handles.probe_line,'YData',get(gui_data.handles.probe_line,'YData') + ap_offset);
-% (probe axis)
-old_probe_vector = cell2mat(get(gui_data.handles.probe_line,{'XData','YData','ZData'})');
-move_probe_vector = diff(old_probe_vector,[],2)./ ...
-    norm(diff(old_probe_vector,[],2))*probe_offset;
-new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
-set(gui_data.handles.probe_line,'XData',new_probe_vector(1,:), ...
-    'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
+if any([ap_offset,ml_offset,probe_offset])
+    % (AP/ML)
+    set(gui_data.handles.probe_ref_line,'XData',get(gui_data.handles.probe_ref_line,'XData') + ml_offset);
+    set(gui_data.handles.probe_line,'XData',get(gui_data.handles.probe_line,'XData') + ml_offset);
+    set(gui_data.handles.probe_ref_line,'YData',get(gui_data.handles.probe_ref_line,'YData') + ap_offset);
+    set(gui_data.handles.probe_line,'YData',get(gui_data.handles.probe_line,'YData') + ap_offset);
+    % (probe axis)
+    old_probe_vector = cell2mat(get(gui_data.handles.probe_line,{'XData','YData','ZData'})');
+    move_probe_vector = diff(old_probe_vector,[],2)./ ...
+        norm(diff(old_probe_vector,[],2))*probe_offset;
+    new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
+    set(gui_data.handles.probe_line,'XData',new_probe_vector(1,:), ...
+        'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
+end
 % (angle)
-gui_data = update_probe_angle(probe_atlas_gui,angle_change);
+if any(angle_change)
+    gui_data = update_probe_angle(probe_atlas_gui,angle_change);
+end
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
