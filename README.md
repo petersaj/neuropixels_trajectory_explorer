@@ -3,7 +3,7 @@ Neuropixels trajectory explorer with the Allen CCF mouse atlas
 
 **NOTE ON UPDATES:** This program will be updated in the (hopefully) near future with better scaling
 
-**NOTE ON SCALING:** The Allen CCF mouse atlas is slightly larger in the DV axis than a real brain (i.e. it is _not_ scaled accurately or isometrically). This GUI incorporates a scaling factor to compensate for this, currently estimated at 88% in the DV axis (100% in the AP/ML axes). This is provisional, and will be updated in the future based on CCF/MRI alignment. 
+**NOTE ON SCALING:** The Allen CCF mouse atlas is slightly larger in the DV axis than a real brain (i.e. it is _not_ scaled accurately or isometrically). This GUI incorporates a scaling factor to compensate for this, currently estimated at 92.5% in the DV axis (100% in the AP/ML axes). This is provisional, and will be updated in the future based on CCF/MRI alignment. 
 
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
