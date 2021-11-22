@@ -45,7 +45,7 @@ bregma_ccf = [540,0,570];
 % (NOTE: non-uniform scaling, DV in CCF is stretched. The DV scaling factor
 % has been approximated by comparisons to in vivo MRI images)
 ap_coords = -((1:size(av,1))-bregma_ccf(1))/100;
-dv_coords = (((1:size(av,2))-bregma_ccf(2))/100)*0.88;
+dv_coords = (((1:size(av,2))-bregma_ccf(2))/100)*0.925;
 ml_coords = -((1:size(av,3))-bregma_ccf(3))/100;
 
 % Create CCF colormap
