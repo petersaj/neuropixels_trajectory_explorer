@@ -38,10 +38,10 @@ A video demo of usage (on a slightly older version) is here: https://www.youtube
 - - Other: not currently in regular use
 
 
-### Experimetal use of Neuropixels coordinates
+### Experimental use of Neuropixels coordinates
 The coordinates of the probe are displayed above the atlas relative to **bregma (anterior/posterior and medial/lateral)** and the **brain surface (depth, axis along the probe)**
 
-The angles of the manipulator are displated relative to the **midline (azimuth/polar angle), where 0 degrees means the probe is coming straight from behind the mouse**, and to the **horizontal (pitch angle), where 90 degrees means the probe is going straight downward**.
+The angles of the manipulator are displayed as the **azimuth (polar) relative to the line from tail to nose, where 0 degrees means the probe is coming straight from behind the mouse**, and to the **elevation (pitch) relative to the horizontal, where 90 degrees means the probe is going straight downward**.
 
 During the experiment:
 - The manipulator angles should be set relative to the midline (azimuth/polar angle) and horizontal (pitch angle)
