@@ -42,9 +42,10 @@ end
 % (bregma is estimated from comparing the Paxinos atlas to the CCF atlas)
 % [AP,DV,ML]
 bregma_ccf = [540,0,570];
-% (NOTE: native CCF DV coordinates are scaled by 15%)
+% (NOTE: non-uniform scaling, DV in CCF is stretched. The DV scaling factor
+% has been approximated by comparisons to in vivo MRI images)
 ap_coords = -((1:size(av,1))-bregma_ccf(1))/100;
-dv_coords = (((1:size(av,2))-bregma_ccf(2))/100)*0.85;
+dv_coords = (((1:size(av,2))-bregma_ccf(2))/100)*0.88;
 ml_coords = -((1:size(av,3))-bregma_ccf(3))/100;
 
 % Create CCF colormap
