@@ -1,6 +1,8 @@
 # Neuropixels trajectory explorer
 Neuropixels trajectory explorer with the Allen CCF mouse atlas
 
+Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
+
 ## Requirements, setup, starting
 - Allen CCF mouse atlas (download all files at http://data.cortexlab.net/allenCCF/)
 (these are formatted versions of the atlas)
@@ -19,7 +21,7 @@ neuropixels_trajectory_explorer
 
 ### If you don't have MATLAB
 - Run neuropixels_trajectory_explorer_installer.exe (also installs MATLAB runtime environment)
-- The first time the explorer is run, you will be prompted to select the folder where you installed the CCF atlas
+- The first time the explorer is run, you will be prompted to select the folder where you installed the CCF atlas. Navigate to the folder with the atlas and hit 'ok'.
 
 ## Instructions
 
@@ -42,6 +44,9 @@ A video demo of usage (on a slightly older version) is here: https://www.youtube
 The coordinates of the probe are displayed above the atlas relative to **bregma (anterior/posterior and medial/lateral)** and the **brain surface (depth, axis along the probe)**
 
 The angles of the manipulator are displayed as the **azimuth (polar) relative to the line from tail to nose, where 0 degrees means the probe is coming straight from behind the mouse**, and to the **elevation (pitch) relative to the horizontal, where 90 degrees means the probe is going straight downward**.
+
+![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/angles.png)
+
 
 During the experiment:
 - The manipulator angles should be set relative to the midline (azimuth/polar angle) and horizontal (pitch angle)
