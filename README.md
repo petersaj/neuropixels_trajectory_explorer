@@ -1,7 +1,7 @@
 # Neuropixels trajectory explorer
 Neuropixels trajectory explorer with the Allen CCF mouse atlas
 
-Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above.
+Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
 ## Requirements, setup, starting
 - Allen CCF mouse atlas (download all files at http://data.cortexlab.net/allenCCF/)
