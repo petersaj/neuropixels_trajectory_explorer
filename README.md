@@ -19,7 +19,7 @@ neuropixels_trajectory_explorer
 
 ### If you don't have MATLAB
 - Run neuropixels_trajectory_explorer_installer.exe (also installs MATLAB runtime environment)
-- The first time the explorer is run, you will be prompted to select the folder where you installed the CCF atlas
+- The first time the explorer is run, you will be prompted to select the folder where you installed the CCF atlas. Navigate to the folder with the atlas and hit 'ok'.
 
 ## Instructions
 
