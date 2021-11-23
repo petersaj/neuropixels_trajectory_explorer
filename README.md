@@ -10,7 +10,7 @@ Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issu
 ## Requirements, setup, starting
 - Download the Allen CCF mouse atlas (all files at http://data.cortexlab.net/allenCCF/)
 
-(this is a re-formatted version of the original atlas found here http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/, which has been processed using https://github.com/cortex-lab/allenCCF/blob/master/setup_utils.m)
+(note on where these files came from: they are a re-formatted version of the original atlas found here http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/, which has been processed using https://github.com/cortex-lab/allenCCF/blob/master/setup_utils.m)
 
 ### If you have MATLAB
 - Download/clone this repository
