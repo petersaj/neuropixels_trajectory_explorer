@@ -8,11 +8,14 @@ Neuropixels trajectory explorer with the Allen CCF mouse atlas
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
 ## Requirements, setup, starting
-- Allen CCF mouse atlas (download all files at http://data.cortexlab.net/allenCCF/)
-(these are formatted versions of the atlas)
+- Download the Allen CCF mouse atlas (all files at http://data.cortexlab.net/allenCCF/)
+
+(this is a re-formatted version of the original atlas found here http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/, which has been processed using https://github.com/cortex-lab/allenCCF/blob/master/setup_utils.m)
 
 ### If you have MATLAB
-- NPY-matlab repository: https://github.com/kwikteam/npy-matlab
+- Download/clone this repository
+
+- Download/clone the NPY-matlab repository: https://github.com/kwikteam/npy-matlab
 (this is code to load the formatted CCF atlas)
 
 - Add the folders with the CCF atlas, the NPY-matlab repository, and this repository into the MATLAB path
@@ -29,7 +32,7 @@ neuropixels_trajectory_explorer
 
 ## Instructions
 
-A video demo of usage (on a slightly older version) is here: https://www.youtube.com/watch?v=ZtiX0iunUTM
+A video demo of usage (from the UCL Neuropixels 2021 course on a slightly older version) is here: https://www.youtube.com/watch?v=ZtiX0iunUTM
 
 ### Overview of interface
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
