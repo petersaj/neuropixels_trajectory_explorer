@@ -55,7 +55,7 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
 - Other: in development, not currently in regular use
 
 #### Atlas
-The atlas can be rotated by clicking and dragging (the slice updates when the mouse is released)
+The atlas can be rotated by clicking and dragging (the slice updates when the mouse is released). The probe can be moved with the arrow keys (+SHIFT: rotation, +ALT: depth).
 
 #### Probe areas
 These are the regions that the probe (blue line) is passing through
