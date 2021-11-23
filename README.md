@@ -41,13 +41,21 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
 - Right: the brain areas the probe passes through in it's current orientation
 
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/control_panel.PNG)
-- Probe controls: arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis), manually enter position
+- Probe controls: 
+  - arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis)
+  - Enter coordinates: move probe to specific coordinates
 - 3D areas: pick an area (through a comprehensive list, search, or hierarchy) to draw in 3D on the atlas
-  - List: choose from list all areas in the CCF
-  - Search: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
-  - Hierarchy: drill down to areas on the hierarchy, select structures at any level of the hierarchy (e.g. select all "primary visual cortex" instead of by layer like "primary visual cortex layer 1")
+  - List areas: choose from list all areas in the CCF
+  - Search areas: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
+  - Hierarchy areas: drill down to areas on the hierarchy, select structures at any level of the hierarchy (e.g. select all "primary visual cortex" instead of by layer like "primary visual cortex layer 1")
+  - Remove areas: select previously drawn 3D areas to remove 
 - Toggle visibility: turn on/off visibility ('Slice' switches between displaying anatomy, CCF-parsed regions, or nothing)
-- Other: not currently in regular use
+  - Slice: toggle brain slice between anatomy (greyscale), CCF regions (with CCF-assigned colors), or off
+  - Brain outline: toggle brain outline visibility on/off
+  - Probe: toggle probe visibility on/off
+  - 3D areas: toggle 3D areas visibility on/off
+  - Dark mode: toggle white/black font and background (can make some colors like yellow cerebellum easier to see)
+- Other: in development, not currently in regular use
 
 
 ### Experimental use of Neuropixels coordinates
