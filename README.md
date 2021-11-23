@@ -32,7 +32,7 @@ neuropixels_trajectory_explorer
 
 ## Instructions
 
-A video demo of usage (from the UCL Neuropixels 2021 course on a slightly older version) is here: https://www.youtube.com/watch?v=ZtiX0iunUTM
+A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac.uk/neuropixels/training/2021-neuropixels-course) on a slightly older version) is here: https://www.youtube.com/watch?v=ZtiX0iunUTM
 
 ### Overview of interface
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
