@@ -36,11 +36,8 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
 
 ### Overview of interface
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
-- Left: control panel with directions for moving the probe and buttons to change what is displayed
-- Middle: the atlas and probe, the view can be rotated by clicking and dragging
-- Right: the brain areas the probe passes through in it's current orientation
 
-![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/control_panel.PNG)
+#### Control panel
 - Probe controls: 
   - arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis)
   - Enter coordinates: move probe to specific coordinates
@@ -56,6 +53,12 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
   - 3D areas: toggle 3D areas visibility on/off
   - Dark mode: toggle white/black font and background (can make some colors like yellow cerebellum easier to see)
 - Other: in development, not currently in regular use
+
+#### Atlas
+The atlas can be rotated by clicking and dragging (the slice updates when the mouse is released)
+
+#### Probe areas
+These are the regions that the probe (blue line) is passing through
 
 
 ### Experimental use of Neuropixels coordinates
