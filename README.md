@@ -12,9 +12,9 @@ Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issu
 
 (note on where these files came from: they are a re-formatted version of [the original atlas](http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/), which has been [processed with this script](https://github.com/cortex-lab/allenCCF/blob/master/setup_utils.m))
 
-### If you have MATLAB
 - Download/clone this repository
 
+### If you have MATLAB
 - Download/clone the NPY-matlab repository: https://github.com/kwikteam/npy-matlab
 (this is code to load the formatted CCF atlas)
 
