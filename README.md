@@ -8,11 +8,14 @@ Neuropixels trajectory explorer with the Allen CCF mouse atlas
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
 ## Requirements, setup, starting
-- Allen CCF mouse atlas (download all files at http://data.cortexlab.net/allenCCF/)
-(these are formatted versions of the atlas)
+- Download the Allen CCF mouse atlas (all files at http://data.cortexlab.net/allenCCF/)
+
+(note on where these files came from: they are a re-formatted version of [the original atlas](http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/), which has been [processed with this script](https://github.com/cortex-lab/allenCCF/blob/master/setup_utils.m))
+
+- Download/clone this repository
 
 ### If you have MATLAB
-- NPY-matlab repository: https://github.com/kwikteam/npy-matlab
+- Download/clone the NPY-matlab repository: https://github.com/kwikteam/npy-matlab
 (this is code to load the formatted CCF atlas)
 
 - Add the folders with the CCF atlas, the NPY-matlab repository, and this repository into the MATLAB path
@@ -29,19 +32,33 @@ neuropixels_trajectory_explorer
 
 ## Instructions
 
-A video demo of usage (on a slightly older version) is here: https://www.youtube.com/watch?v=ZtiX0iunUTM
+A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac.uk/neuropixels/training/2021-neuropixels-course) on a slightly older version) is here: https://www.youtube.com/watch?v=ZtiX0iunUTM
 
 ### Overview of interface
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
-- Left: control panel with directions for moving the probe and buttons to change what is displayed
-- Middle: the atlas and probe, the view can be rotated by clicking and dragging
-- Right: the brain areas the probe passes through in it's current orientation
 
-![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/control_panel.PNG)
-- Probe controls: arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis), manually enter position
-- 3D areas: pick an area (through a comprehensive list, search or hierarchy) to draw in 3D on the atlas
+#### Control panel
+- Probe controls: 
+  - arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis)
+  - Enter coordinates: move probe to specific coordinates
+- 3D areas: pick an area (through a comprehensive list, search, or hierarchy) to draw in 3D on the atlas
+  - List areas: choose from list all areas in the CCF
+  - Search areas: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
+  - Hierarchy areas: drill down to areas on the hierarchy, select structures at any level of the hierarchy (e.g. select all "primary visual cortex" instead of by layer like "primary visual cortex layer 1")
+  - Remove areas: select previously drawn 3D areas to remove 
 - Toggle visibility: turn on/off visibility ('Slice' switches between displaying anatomy, CCF-parsed regions, or nothing)
-- - Other: not currently in regular use
+  - Slice: toggle brain slice between anatomy (greyscale), CCF regions (with CCF-assigned colors), or off
+  - Brain outline: toggle brain outline visibility on/off
+  - Probe: toggle probe visibility on/off
+  - 3D areas: toggle 3D areas visibility on/off
+  - Dark mode: toggle white/black font and background (can make some colors like yellow cerebellum easier to see)
+- Other: in development, not currently in regular use
+
+#### Atlas
+The atlas can be rotated by clicking and dragging (the slice updates when the mouse is released). The probe can be moved with the arrow keys (+SHIFT: rotation, +ALT: depth).
+
+#### Probe areas
+These are the regions that the probe (blue line) is passing through
 
 
 ### Experimental use of Neuropixels coordinates
