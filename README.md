@@ -73,3 +73,7 @@ During the experiment:
 - The manipulator angles should be set relative to the midline (azimuth/polar angle) and horizontal (pitch angle)
 - The probe should be positioned over bregma and the AP/ML coordinates should be zeroed, then the probe should lightly touch the brain in the desired insertion spot and the probe-axis coordinate should be zeroed
 - The probe should be lowered along the probe-axis until it reaches the desired probe-axis coordinate
+
+
+## Changelog
+
