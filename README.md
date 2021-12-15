@@ -40,7 +40,8 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
 #### Control panel
 - Probe controls: 
   - arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis)
-  - Enter coordinates: move probe to specific coordinates
+  - Set entry: move probe to specific entry coordinates
+  - Set endpoint: move probe to specific endpoint coordinates
 - 3D areas: pick an area (through a comprehensive list, search, or hierarchy) to draw in 3D on the atlas
   - List areas: choose from list all areas in the CCF
   - Search areas: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
@@ -76,4 +77,4 @@ During the experiment:
 
 
 ## Changelog
-
+2021-12-15: Added 'set endpoint' functionality, approximated bregma DV (from MRI - very rough)
