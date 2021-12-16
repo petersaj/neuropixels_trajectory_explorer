@@ -1,9 +1,11 @@
 # Neuropixels trajectory explorer
-Neuropixels trajectory explorer with the Allen CCF mouse atlas
+Neuropixels trajectory explorer with the Allen CCF mouse atlas. See changelog below for history of updates.
 
-**NOTE ON UPDATES:** The coordinates in this program will be updated in the (hopefully) near future following comparisons between the CCF and MRI data: this will likely include size, scaling, and rotation. 
+**FUTURE UPDATES:** The coordinates in this program will be updated in the (hopefully) near future following comparisons between the CCF and MRI data: this will likely include size, scaling, and rotation. 
 
 **NOTE ON SCALING AND ROTATION:** The Allen CCF mouse atlas is slightly stretched in the DV axis compared to the average brain, and is currently scaled at 94.5%. This is provisional, and will be updated in the future based on CCF/MRI alignment. It is also estimated that the angle between bregma and lambda is >5 degrees in the CCF, this is not implemented yet but will be once it is more accurately estimated.
+
+**NOTE ON BREGMA:** Bregma has been approximated in AP by matching the Paxinos atlas slice at AP=0 to the CCF, the ML position is the midline, and the DV position is a very rough approximation from matching an MRI image.
 
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
@@ -41,7 +43,7 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
 - Probe controls: 
   - arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis)
   - Set entry: move probe to specific entry coordinates
-  - Set endpoint: move probe to specific endpoint coordinates
+  - Set endpoint: move probe to specific endpoint coordinates (NOTE: this uses the roughly approximated bregma DV position)
 - 3D areas: pick an area (through a comprehensive list, search, or hierarchy) to draw in 3D on the atlas
   - List areas: choose from list all areas in the CCF
   - Search areas: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
@@ -71,10 +73,10 @@ The angles of the manipulator are displayed as the **azimuth (polar) relative to
 
 
 During the experiment:
-- The manipulator angles should be set relative to the midline (azimuth/polar angle) and horizontal (pitch angle)
-- The probe should be positioned over bregma and the AP/ML coordinates should be zeroed, then the probe should lightly touch the brain in the desired insertion spot and the depth (along the probe-axis) coordinate should be zeroed
-- The probe should be lowered in depth (along the probe-axis) until it reaches the desired depth coordinate
-
+- Position the manipulator angles in azimuth/polar and elevation/pitch
+- Position the probe tip over bregma and zero the AP/ML coordinates
+- Move the probe tip until it's lightly touching the brain at the desired AP/ML coordinates
+- Zero the depth coordinate (along the probe-axis), then descend until the desired depth is reached
 
 ## Changelog
 2021-12-15: Added 'set endpoint' functionality, approximated bregma DV (from MRI - very rough)
