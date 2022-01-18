@@ -20,7 +20,7 @@ end
 % Check for dependencies
 % (npy-matlab to load in atlas)
 if ~exist('readNPY','file')
-   error('"npy-matlab" code not found, download here and add to matlab path: https://github.com/kwikteam/npy-matlab') 
+   error('npy-matlab code not found, downl 
 end
 
 % Initialize gui_data structure
@@ -117,7 +117,7 @@ set(axes_probe_areas,'FontSize',11);
 yyaxis(axes_probe_areas,'left');
 probe_areas_plot = image(0);
 set(axes_probe_areas,'XTick','','YLim',[0,probe_length],'YColor','k','YDir','reverse');
-ylabel(axes_probe_areas,'Depth (mm)');
+ylabel(axes_probe_areas,'Depth (\mum)');
 colormap(axes_probe_areas,ccf_cmap);
 caxis([1,size(ccf_cmap,1)])
 yyaxis(axes_probe_areas,'right');
