@@ -712,12 +712,14 @@ parsed_structures = unique(reshape(gui_data.av(1:slice_spacing:end, ...
     1:slice_spacing:end,1:slice_spacing:end),[],1));
 
 % plot_structure_parsed = listdlg('PromptString','Select a structure to plot:', ...
-%     'ListString',gui_data.st.safe_name(parsed_structures),'ListSize',[520,500]);
+%     'ListString',gui_data.st.safe_name(parsed_structures),'ListSize',[520,500], ...
+%     'SelectionMode','single');
 % plot_structure = parsed_structures(plot_structure_parsed);
 
 % (change: show all structures even if not parsed to allow hierarchy)
 plot_structure = listdlg('PromptString','Select a structure to plot:', ...
-    'ListString',gui_data.st.safe_name,'ListSize',[520,500]);
+    'ListString',gui_data.st.safe_name,'ListSize',[520,500], ...
+    'SelectionMode','single');
 
 % Draw areas
 draw_areas(probe_atlas_gui,slice_spacing,plot_structure);
@@ -743,12 +745,9 @@ structure_match = find(contains(lower(gui_data.st.safe_name),structure_search));
 list_structures = structure_match;
 
 plot_structure_parsed = listdlg('PromptString','Select a structure to plot:', ...
-    'ListString',gui_data.st.safe_name(list_structures),'ListSize',[520,500]);
+    'ListString',gui_data.st.safe_name(list_structures),'ListSize',[520,500], ...
+    'SelectionMode','single');
 plot_structure = list_structures(plot_structure_parsed);
-
-if length(plot_structure) > 1
-    error('Only one structure can be selected at a time')
-end
 
 % Draw areas
 draw_areas(probe_atlas_gui,slice_spacing,plot_structure);
