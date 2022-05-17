@@ -3,8 +3,6 @@ Neuropixels trajectory explorer with the Allen CCF mouse atlas. See changelog be
 
 **Keep the GUI up-to-date:** there are semi-regular upgrades (sometimes just a feature, sometimes something critical like getting a better estimate of distances and angles), so make sure to pull the current repository whenever planning a new trajectory.
 
-
-
 CCF scaling, rotation, and bregma notes:
 * the CCF is slightly stretched in the DV axis (because it's based on a single mouse with an unsually tall brain), currently estimated here as 94.5%
 * The CCF AP rotation is arbitrary with reference to the skull, and this angle has been estimated as 7 degrees (from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3.full.pdf). This is implemented here, with the CCF being tilted nose-down by 7 degrees.
