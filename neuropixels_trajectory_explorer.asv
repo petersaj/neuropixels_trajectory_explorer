@@ -7,8 +7,9 @@
 % Instructions for use: 
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
+
 %% GUI setup
-function neuropixels_trajectory_explorer
+function neuropixels_trajectory_explorer(tv,av,st)
 
 % Check MATLAB version
 matlab_version = version('-date');
@@ -24,8 +25,6 @@ end
 
 % Initialize gui_data structure
 gui_data = struct;
-
-% ~~~~ Load atlas
 
 % Load in atlas
 % (directory with CCF must be in matlab path to find it)
@@ -43,6 +42,40 @@ st = load_structure_tree([allen_atlas_path filesep 'structure_tree_safe_2017.csv
 % [AP,DV,ML]
 bregma_ccf = [540,44,570];
 
+%%%%%%%%%%%%%%% IN PROGRESS
+% Rotate the CCF in the AP direction
+% from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3 fig2f 
+% (CCF angle relative to a leveled bregma-lambda is arbitrary, this value
+% was found empirically from average of many actual vs attempted
+% trajectories)
+ap_rotation = -7; % 7 degrees nose-down
+rot_vector = bregma_ccf + [0,0,1];
+
+a = imtranslate(av,bregma_ccf,'nearest','fillvalues',1,'OutputView','full');
+b = imrotate3(a,ap_rotation,[0,0,1],'nearest','loose','fillvalues',1);
+c = imtranslate(b,-bregma_ccf,'nearest','fillvalues',1);
+
+av_rotate = imrotate3(av,ap_rotation,[0,0,1],'nearest','loose','fillvalues',1);
+tv_rotate = imrotate3(tv,ap_rotation,[0,0,1],'nearest','loose','fillvalues',0);
+
+bregma_box = int8(+av > 1);
+bregma_box(bregma_ccf(1),bregma_ccf(2),bregma_ccf(3)) = 2;
+bregma_box_rotate = imrotate3(bregma_box,ap_rotation,[0,0,1],'nearest','loose','fillvalues',0);
+
+% Find bregma AP given new rotation (from back of brain)
+find(sum(sum(av_rotate-1,2),3),1,'last')
+
+bregma_ap_rotate = bregma_ccf(1)/sind(90+ap_rotation)
+
+%%%%%%%%%%%%%%%%%%%%%%%
+
+% Set coordinate system (mm relative to bregma)
+% (NOTE: non-uniform scaling, CCF DV is larger than the average mouse.
+% Scaling factor approximated from MRI images)
+ap_coords = -((1:size(av,1))-bregma_ccf(1))/100;
+dv_coords = (((1:size(av,2))-bregma_ccf(2))/100)*0.945;
+ml_coords = -((1:size(av,3))-bregma_ccf(3))/100;
+
 % Create CCF colormap
 % (copied from cortex-lab/allenCCF/setup_utils
 ccf_color_hex = st.color_hex_triplet;
@@ -51,38 +84,6 @@ ccf_cmap_c1 = cellfun(@(x)hex2dec(x(1:2)), ccf_color_hex, 'uni', false);
 ccf_cmap_c2 = cellfun(@(x)hex2dec(x(3:4)), ccf_color_hex, 'uni', false);
 ccf_cmap_c3 = cellfun(@(x)hex2dec(x(5:6)), ccf_color_hex, 'uni', false);
 ccf_cmap = horzcat(vertcat(ccf_cmap_c1{:}),vertcat(ccf_cmap_c2{:}),vertcat(ccf_cmap_c3{:}))./255;
-
-% ~~~~ Rotate atlas
-
-% Rotate the CCF in the AP direction
-% from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3 fig2f 
-% (CCF angle relative to a leveled bregma-lambda is arbitrary, this value
-% was found empirically from average of many actual vs attempted
-% trajectories)
-ap_rotation = -7; % 7 degrees nose-down
-av_rotate = imrotate3(av,ap_rotation,[0,0,1],'nearest','loose','fillvalues',1);
-tv_rotate = imrotate3(tv,ap_rotation,[0,0,1],'nearest','loose','fillvalues',0);
-
-% Set rotated bregma 
-% NOTE: new empirical value (AP coordinate from matching to Paxinos, DV
-% coordinate based on same thickness as CCF in rotated CCF)
-bregma_ccf_rotate = [600,114,570];
-
-% ~~~~ Coordinate system
-
-% Set coordinate system (mm relative to bregma)
-% (NOTE: non-uniform scaling, CCF DV is larger than the average mouse.
-% Scaling factor approximated from MRI images)
-% % (without rotation)
-% ap_coords = -((1:size(av,1))-bregma_ccf(1))/100;
-% dv_coords = (((1:size(av,2))-bregma_ccf(2))/100)*0.945;
-% ml_coords = -((1:size(av,3))-bregma_ccf(3))/100;
-% (with rotation)
-ap_coords = -((1:size(av_rotate,1))-bregma_ccf_rotate(1))/100;
-dv_coords = (((1:size(av_rotate,2))-bregma_ccf_rotate(2))/100)*0.945;
-ml_coords = -((1:size(av_rotate,3))-bregma_ccf_rotate(3))/100;
-
-% ~~~~ Make GUI axes and objects
 
 % Set up the gui
 probe_atlas_gui = figure('Toolbar','none','Menubar','none','color','w', ...
@@ -95,7 +96,7 @@ axis(axes_atlas,'vis3d','equal','off','manual'); hold(axes_atlas,'on');
 % Draw brain outline
 slice_spacing = 10;
 brain_volume = ...
-    bwmorph3(bwmorph3(av_rotate(1:slice_spacing:end, ...
+    bwmorph3(bwmorph3(av(1:slice_spacing:end, ...
     1:slice_spacing:end,1:slice_spacing:end)>1,'majority'),'majority');
 
 [curr_ml_grid,curr_ap_grid,curr_dv_grid] = ...
@@ -150,10 +151,11 @@ set(axes_probe_areas,'XTick','','YLim',[0,probe_length],'YColor','k','YDir','rev
 title(axes_probe_areas,'Probe areas');
 
 % Store data
-gui_data.tv = tv_rotate; % Intensity atlas
-gui_data.av = av_rotate; % Annotated atlas
+gui_data.tv = tv; % Intensity atlas
+gui_data.av = av; % Annotated atlas
 gui_data.st = st; % Labels table
 gui_data.cmap = ccf_cmap; % Atlas colormap
+gui_data.bregma = bregma_ccf; % Bregma for external referencing
 gui_data.ap_coords = ap_coords;
 gui_data.dv_coords = dv_coords;
 gui_data.ml_coords = ml_coords;
