@@ -1,11 +1,10 @@
 # Neuropixels trajectory explorer
 Neuropixels trajectory explorer with the Allen CCF mouse atlas. See changelog below for history of updates.
 
-**FUTURE UPDATES:** The coordinates in this program will be updated in the (hopefully) near future following comparisons between the CCF and MRI data: this will likely include size, scaling, and rotation. 
-
-**NOTE ON SCALING AND ROTATION:** The Allen CCF mouse atlas is slightly stretched in the DV axis compared to the average brain, and is currently scaled at 94.5%. This is provisional, and will be updated in the future based on CCF/MRI alignment. It is also estimated that the angle between bregma and lambda is >5 degrees in the CCF, this is not implemented yet but will be once it is more accurately estimated.
-
-**NOTE ON BREGMA:** Bregma has been approximated in AP by matching the Paxinos atlas slice at AP=0 to the CCF, the ML position is the midline, and the DV position is a very rough approximation from matching an MRI image.
+CCF scaling, rotation, and bregma notes:
+* the CCF is slightly stretched in the DV axis (because it's based on a single mouse with an unsually tall brain), currently estimated here as 94.5%
+* The CCF AP rotation is arbitrary with reference to the skull, and this angle has been estimated as 7 degrees (from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3.full.pdf). This is implemented here, with the CCF being tilted nose-down by 7 degrees.
+* Bregma has been approximated in AP by matching the Paxinos atlas slice at AP=0 to the CCF, the ML position is the midline, and the DV position is a very rough approximation from matching an MRI image (this DV coordinate shouldn't be used - all actual coordinates should be measured from the brain surface for better accuracy)
 
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
