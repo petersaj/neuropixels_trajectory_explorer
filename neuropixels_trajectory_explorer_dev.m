@@ -55,8 +55,8 @@ ccf_cmap = horzcat(vertcat(ccf_cmap_c1{:}),vertcat(ccf_cmap_c2{:}),vertcat(ccf_c
 bregma_ccf = [540,44,570]; % [AP,DV,ML]
 ccf_translation_tform = eye(4)+[zeros(3,4);-bregma_ccf([3,1,2]),0];
 
-% (scale values from Josh Siegle)
-scale = [1,1,0.9434]./100; % [AP,ML,DV], 10um to 1mm
+% (reflect AP/ML, scale DV value from Josh Siegle, convert 10um to 1mm)
+scale = [-1,-1,0.9434]./100; % [AP,ML,DV]
 ccf_scale_tform = eye(4).*[scale,1]';
 
 % (rotation values from IBL estimate)
@@ -106,12 +106,12 @@ view([30,150]);
 caxis([0 300]);
 
 xlim([-5.2,5.2]);
-ylim([-5,8.5]);
+ylim([-8.5,5]);
 zlim([-1,6.5]);
 
 % Set up the probe reference/actual
-probe_ref_top = [0,0,0];
-probe_ref_bottom = [0,0,-0.1];
+probe_ref_top = [0,0,-0.1];
+probe_ref_bottom = [0,0,6];
 probe_ref_vector = [probe_ref_top',probe_ref_bottom'];
 probe_ref_line = line(probe_ref_vector(1,:),probe_ref_vector(2,:),probe_ref_vector(3,:), ...
     'linewidth',1.5,'color','r','linestyle','--');
@@ -135,11 +135,11 @@ yyaxis(axes_probe_areas,'left');
 probe_areas_plot = image(0);
 set(axes_probe_areas,'XTick','','YLim',[0,probe_length],'YColor','k','YDir','reverse');
 ylabel(axes_probe_areas,'Depth (mm)');
-colormap(axes_probe_areas,ccf_cmap);
-caxis([1,size(ccf_cmap,1)])
 yyaxis(axes_probe_areas,'right');
 set(axes_probe_areas,'XTick','','YLim',[0,probe_length],'YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
+colormap(axes_probe_areas,ccf_cmap);
+caxis([1,size(ccf_cmap,1)]);
 
 % Store data
 gui_data.tv = tv; % Intensity atlas
@@ -389,14 +389,14 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
     ap_lim = ylim(gui_data.handles.axes_atlas);
     dv_lim = zlim(gui_data.handles.axes_atlas);
 
-    slice_px_space = 0.1; % resolution of slice to grab
+    slice_px_space = 0.05; % resolution of slice to grab
     [~,cam_plane] = max(abs(normal_vector./norm(normal_vector)));
     switch cam_plane
         case 1
             [plane_ap_bregma,plane_dv_bregma] = ndgrid(...
                 ap_lim(1):slice_px_space:ap_lim(2),...
                 dv_lim(1):slice_px_space:dv_lim(2));
-            plane_ml = ...
+            plane_ml_bregma = ...
                 (normal_vector(2)*plane_ap_bregma+normal_vector(3)*plane_dv_bregma + plane_offset)/ ...
                 -normal_vector(1);
 
@@ -412,7 +412,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
             [plane_ml_bregma,plane_ap_bregma] = ndgrid(...
                 ml_lim(1):slice_px_space:ml_lim(2),...
                 ap_lim(1):slice_px_space:ap_lim(2));
-            plane_dv = ...
+            plane_dv_bregma = ...
                 (normal_vector(2)*plane_ap_bregma+normal_vector(1)*plane_ml_bregma + plane_offset)/ ...
                 -normal_vector(3);       
     end
@@ -422,7 +422,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
         transformPointsInverse(gui_data.ccf_bregma_tform,plane_ml_bregma,plane_ap_bregma,plane_dv_bregma);
 
     % Grab pixels from (selected) volume
-    atlas_downsample = 5; % (downsample atlas to make this faster)
+    atlas_downsample = 3; % (downsample atlas to make this faster)
     switch gui_data.handles.slice_volume
         case 'tv'
             curr_slice = single(interpn( ...
@@ -666,7 +666,7 @@ probe_coords_depth = linspace(0,gui_data.probe_length,probe_n_coords);
     probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma);
 
 % Get brain labels across the probe and trajectory, and intersection with brain
-atlas_downsample = 5; % (downsample atlas to make this faster)
+atlas_downsample = 3; % (downsample atlas to make this faster)
 trajectory_areas = interpn( ...
     imresize3(gui_data.av,1/atlas_downsample,'nearest'), ...
     trajectory_ap_coords_ccf/atlas_downsample, ...
@@ -688,7 +688,7 @@ probe_areas = interpn( ...
     imresize3(gui_data.av,1/atlas_downsample,'nearest'), ...
     probe_ap_coords_ccf/atlas_downsample, ...
     probe_dv_coords_ccf/atlas_downsample, ...
-    probe_ml_coords_ccf/atlas_downsample,'nearest');
+    probe_ml_coords_ccf/atlas_downsample,'nearest')';
 
 probe_area_boundaries = intersect(unique([find(~isnan(probe_areas),1,'first'); ...
     find(diff(probe_areas) ~= 0);find(~isnan(probe_areas),1,'last')]),find(~isnan(probe_areas)));
@@ -807,20 +807,25 @@ if ~isempty(plot_structure)
     plot_ccf_idx = find(cellfun(@(x) contains(x,plot_structure_id), ...
         gui_data.st.structure_id_path));
     
-    % plot the structure
-    slice_spacing = 5;
-    plot_structure_color = hex2dec(reshape(gui_data.st.color_hex_triplet{plot_structure},2,[])')./255;
+    % Plot the structure
+    atlas_downsample = 5; % (downsample atlas to make this faster)
     
-    [curr_ml_grid,curr_ap_grid,curr_dv_grid] = ...
-    ndgrid(gui_data.ml_coords(1:slice_spacing:end), ...
-    gui_data.ap_coords(1:slice_spacing:end), ...
-    gui_data.dv_coords(1:slice_spacing:end));
-    
-    structure_3d = isosurface(curr_ml_grid,curr_ap_grid,curr_dv_grid, ...
-        permute(ismember(gui_data.av(1:slice_spacing:end, ...
-        1:slice_spacing:end,1:slice_spacing:end),plot_ccf_idx),[3,1,2]),0);
+    [ap_grid_ccf,dv_grid_ccf,ml_grid_ccf] = ...
+        ndgrid(1:atlas_downsample:size(gui_data.av,1), ...
+        1:atlas_downsample:size(gui_data.av,2), ...
+        1:atlas_downsample:size(gui_data.av,3));
+
+    [ml_grid_bregma,ap_grid_bregma,dv_grid_bregma] = ...
+        transformPointsForward(gui_data.ccf_bregma_tform, ...
+        ml_grid_ccf,ap_grid_ccf,dv_grid_ccf);
+
+    structure_3d = isosurface(ml_grid_bregma,ap_grid_bregma,dv_grid_bregma, ...
+        ismember(gui_data.av(1:atlas_downsample:end, ...
+        1:atlas_downsample:end,1:atlas_downsample:end),plot_ccf_idx),0);
     
     structure_alpha = 0.2;
+    plot_structure_color = hex2dec(reshape(gui_data.st.color_hex_triplet{plot_structure},2,[])')./255;
+
     gui_data.structure_plot_idx(end+1) = plot_structure;
     gui_data.handles.structure_patch(end+1) = patch(gui_data.handles.axes_atlas, ...
         'Vertices',structure_3d.vertices, ...
