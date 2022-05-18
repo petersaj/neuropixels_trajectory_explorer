@@ -105,9 +105,9 @@ brain_outline = patch( ...
 view([30,150]);
 caxis([0 300]);
 
-xlim([-5.2,5.2]);
-ylim([-8.5,5]);
-zlim([-1,6.5]);
+xlim([-5.2,5.2]);set(gca,'XTick',-5:0.5:5);
+ylim([-8.5,5]);set(gca,'YTick',-8.5:0.5:5);
+zlim([-1,6.5]);set(gca,'ZTick',-1:0.5:6.5);
 
 % Set up the probe reference/actual
 probe_ref_top = [0,0,-0.1];
