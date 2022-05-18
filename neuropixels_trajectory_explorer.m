@@ -108,6 +108,7 @@ caxis([0 300]);
 xlim([-5.2,5.2]);set(gca,'XTick',-5:0.5:5);
 ylim([-8.5,5]);set(gca,'YTick',-8.5:0.5:5);
 zlim([-1,6.5]);set(gca,'ZTick',-1:0.5:6.5);
+grid on;
 
 % Set up the probe reference/actual
 probe_ref_top = [0,0,-0.1];
@@ -232,6 +233,8 @@ controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontS
     'Units','normalized','Position',button_position,'String','Slice','Callback',{@visibility_slice,probe_atlas_gui});
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',controls_fontsize, ...
     'Units','normalized','Position',button_position,'String','Brain outline','Callback',{@visibility_brain_outline,probe_atlas_gui});
+controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',controls_fontsize, ...
+    'Units','normalized','Position',button_position,'String','Grid','Callback',{@visibility_grid,probe_atlas_gui});
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',controls_fontsize, ...
     'Units','normalized','Position',button_position,'String','Probe','Callback',{@visibility_probe,probe_atlas_gui});
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',controls_fontsize, ...
@@ -889,6 +892,19 @@ gui_data = guidata(probe_atlas_gui);
 current_visibility = gui_data.handles.cortex_outline.Visible;
 switch current_visibility; case 'on'; new_visibility = 'off'; case 'off'; new_visibility = 'on'; end;
 set(gui_data.handles.cortex_outline,'Visible',new_visibility);
+
+% Upload gui_data
+guidata(probe_atlas_gui,gui_data);
+end
+
+function visibility_grid(h,eventdata,probe_atlas_gui)
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Toggle grid
+current_visibility = gui_data.handles.axes_atlas.Visible;
+switch current_visibility; case 'on'; new_visibility = 'off'; case 'off'; new_visibility = 'on'; end;
+set(gui_data.handles.axes_atlas,'Visible',new_visibility);
 
 % Upload gui_data
 guidata(probe_atlas_gui,gui_data);
