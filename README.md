@@ -80,6 +80,8 @@ During the experiment:
 - Zero the depth coordinate (along the probe-axis), then descend until the desired depth is reached
 
 ## Changelog
+2022-05-18: Changed coordinate system to allow for more flexible coordinate changes in future (including user-set scalings/rotations)
+
 2022-05-17: Rotated CCF 7 degrees in AP to line up to a leveled bregma-lambda (angle from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3.full.pdf)
 
 2021-12-15: Added 'set endpoint' functionality, approximated bregma DV (from MRI - very rough)
