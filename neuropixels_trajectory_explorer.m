@@ -81,7 +81,7 @@ axes_atlas = axes('Position',[-0.3,0.1,1.2,0.8],'ZDir','reverse');
 axis(axes_atlas,'vis3d','equal','off','manual'); hold(axes_atlas,'on');
 
 % Draw brain outline
-slice_spacing = 10;
+slice_spacing = 5;
 brain_volume = ...
     bwmorph3(bwmorph3(av(1:slice_spacing:end, ...
     1:slice_spacing:end,1:slice_spacing:end)>1,'majority'),'majority');
