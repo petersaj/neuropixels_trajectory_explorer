@@ -26,6 +26,7 @@ Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issu
 (File > Set Path > Add with subfolders... > select the downloaded folder (have to do this for each folder separately), then hit 'Save' and 'Close')
 
 - Run the command in MATLAB:
+
 Mouse:
 ```matlab
 neuropixels_trajectory_explorer
