@@ -863,7 +863,7 @@ if ~isempty(plot_structure)
         gui_data.st.structure_id_path));
     
     % Plot the structure
-    atlas_downsample = 3; % (downsample atlas to make this faster)
+    atlas_downsample = 5; % (downsample atlas to make this faster)
     
     [ap_grid_ccf,dv_grid_ccf,ml_grid_ccf] = ...
         ndgrid(1:atlas_downsample:size(gui_data.av,1), ...
