@@ -68,6 +68,8 @@ These are the regions that the probe (blue line) is passing through
 ### Experimental use of Neuropixels coordinates
 The coordinates of the probe are displayed above the atlas relative to **bregma (anterior/posterior and medial/lateral)** and the **brain surface (depth, axis along the probe)**
 
+![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/positions.png)
+
 The angles of the manipulator are displayed as the **azimuth (polar) relative to the line from tail to nose, where 0 degrees means the probe is coming straight from behind the mouse**, and to the **elevation (pitch) relative to the horizontal, where 90 degrees means the probe is going straight downward**.
 
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/angles.png)
