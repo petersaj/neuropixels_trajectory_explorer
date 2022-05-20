@@ -1,5 +1,5 @@
 # Neuropixels trajectory explorer
-Neuropixels trajectory explorer with the Allen CCF mouse atlas. See changelog below for history of updates.
+Neuropixels trajectory explorer with the Allen CCF mouse atlas (or Waxholm rat atlas). See changelog below for history of updates.
 
 **Keep the GUI up-to-date:** there are semi-regular upgrades (sometimes just a feature, sometimes something critical like getting a better estimate of distances and angles), so make sure to pull the current repository whenever planning a new trajectory.
 
@@ -11,9 +11,10 @@ CCF scaling, rotation, and bregma notes:
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
 ## Requirements, setup, starting
-- Download the Allen CCF mouse atlas (all files at http://data.cortexlab.net/allenCCF/)
-
+- Mouse: download the Allen CCF mouse atlas (all files at http://data.cortexlab.net/allenCCF/)
 (note on where these files came from: they are a re-formatted version of [the original atlas](http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/), which has been [processed with this script](https://github.com/cortex-lab/allenCCF/blob/master/setup_utils.m))
+
+- Rat: download the Waxholm rat atlas and unzip (https://www.nitrc.org/projects/whs-sd-atlas/)
 
 - Download/clone this repository
 
@@ -21,12 +22,17 @@ Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issu
 - Download/clone the NPY-matlab repository: https://github.com/kwikteam/npy-matlab
 (this is code to load the formatted CCF atlas)
 
-- Add the folders with the CCF atlas, the NPY-matlab repository, and this repository into the MATLAB path
+- Add to MATLAB path: the folders with the atlas, the NPY-matlab repository, and this repository
 (File > Set Path > Add with subfolders... > select the downloaded folder (have to do this for each folder separately), then hit 'Save' and 'Close')
 
 - Run the command in MATLAB:
+Mouse:
 ```matlab
 neuropixels_trajectory_explorer
+```
+Rat: 
+```matlab
+neuropixels_trajectory_explorer_rat
 ```
 
 ### If you don't have MATLAB
@@ -82,8 +88,7 @@ During the experiment:
 - Zero the depth coordinate (along the probe-axis), then descend until the desired depth is reached
 
 ## Changelog
+2022-05-20: Added rat trajectroy explorer ('neuropixels_trajectory_explorer_rat')
 2022-05-18: Changed coordinate system to allow for more flexible coordinate changes in future (including user-set scalings/rotations)
-
 2022-05-17: Rotated CCF 7 degrees in AP to line up to a leveled bregma-lambda (angle from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3.full.pdf)
-
 2021-12-15: Added 'set endpoint' functionality, approximated bregma DV (from MRI - very rough)
