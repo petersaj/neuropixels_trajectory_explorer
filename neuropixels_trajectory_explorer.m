@@ -509,7 +509,7 @@ ml_lim = xlim(gui_data.handles.axes_atlas);
 ap_lim = ylim(gui_data.handles.axes_atlas);
 dv_lim = zlim(gui_data.handles.axes_atlas);
 max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
-[y,x,z] = sph2cart(pi-probe_angle_rad(1),pi-probe_angle_rad(2),max_ref_length);
+[y,x,z] = sph2cart(pi+probe_angle_rad(1),pi-probe_angle_rad(2),max_ref_length);
 
 % Get top of probe reference with user brain intersection point
 % (get DV location of brain surface at chosen ML/AP point)
