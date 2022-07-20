@@ -126,7 +126,8 @@ probe_line = line(probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
 % Set up the text to display coordinates
 probe_coordinates_text = uicontrol('Style','text','String','', ...
     'Units','normalized','Position',[0,0.9,0.5,0.1], ...
-    'BackgroundColor','w','HorizontalAlignment','left','FontSize',12);
+    'BackgroundColor','w','HorizontalAlignment','left','FontSize',12, ...
+    'FontName','Consolas');
 
 % Set up the probe area axes
 axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8]);
@@ -749,21 +750,25 @@ probe_area_labels = gui_data.st.safe_name(probe_areas(probe_area_centers_idx));
 
 % Get coordinate from bregma and probe-axis depth from surface
 % (round to nearest 10 microns)
-probe_bregma_coordinate = trajectory_brain_intersect(1:2);
+probe_bregma_coordinate = trajectory_brain_intersect;
 probe_depth = norm(trajectory_brain_intersect - probe_vector(:,2));
 
 % Update the text
-probe_angle_text = sprintf('Probe angle: %.0f%c azimuth, %.0f%c elevation', ...
+% (manipulator angles)
+probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth, % .0f%c elevation', ...
     gui_data.probe_angle(1),char(176),gui_data.probe_angle(2),char(176));
-probe_depth_text = sprintf('Probe-axis depth (mm from brain surface): %.2f', ...
-    probe_depth);
-probe_insertion_text = sprintf('Probe insertion (mm from bregma): %.2f AP, %.2f ML, ~%.2f DV', ...
-    probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_vector(3,1));
-probe_endpoint_text = sprintf('Probe endpoint (mm from bregma): %.2f AP, %.2f ML, ~%.2f DV', ...
-    probe_vector(2,2),probe_vector(1,2),probe_vector(3,2));
+% (probe insertion point and depth)
+probe_insertion_text = sprintf('Probe insertion: % .2f AP, % .2f ML, % .2f depth', ...
+    probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_depth);
+% (probe start/endpoints)
+recording_startpoint_text = sprintf('Recording start: % .2f AP, % .2f ML, % .2f DV', ...
+    probe_vector([2,1,3],1));
+recording_endpoint_text = sprintf('Recording end:   % .2f AP, % .2f ML, % .2f DV', ...
+    probe_vector([2,1,3],2));
 
-probe_text = {probe_angle_text,probe_depth_text,probe_insertion_text,probe_endpoint_text};
-
+% (combine and update)
+probe_text = {probe_angle_text,probe_insertion_text, ...
+    recording_startpoint_text,recording_endpoint_text};
 set(gui_data.probe_coordinates_text,'String',probe_text);
 
 % Update the probe areas
