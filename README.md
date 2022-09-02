@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/429406115.svg)](https://zenodo.org/badge/latestdoi/429406115)
+
 # Neuropixels trajectory explorer
 Neuropixels trajectory explorer with the Allen CCF mouse atlas or Waxholm rat atlas. See changelog below for history of updates.
 
