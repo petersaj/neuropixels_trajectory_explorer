@@ -21,6 +21,10 @@ end
 if ~exist('readNPY','file')
    error('"npy-matlab" code not found, download here and add to matlab path: https://github.com/kwikteam/npy-matlab') 
 end
+% (image processing toolbox)
+if ~license('test','Image_Toolbox')
+    error('MATLAB Image Processing toolbox required: https://uk.mathworks.com/products/image.html')
+end
 
 % Initialize gui_data structure
 gui_data = struct;
