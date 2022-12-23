@@ -157,7 +157,7 @@ update_slice(probe_atlas_gui);
 button_fontsize = 12;
 
 %%% View angle buttons
-view_button_position = [0,0,0.05,0.05];
+view_button_position = [0,0,0.05,0.1];
 clear view_button_h
 view_button_h(1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',view_button_position,'String','Coronal','Callback',{@view_coronal,probe_atlas_gui});
@@ -731,7 +731,7 @@ probe_area_boundaries = intersect(unique([find(~isnan(probe_areas),1,'first'); .
     find(diff(probe_areas) ~= 0);find(~isnan(probe_areas),1,'last')]),find(~isnan(probe_areas)));
 probe_area_centers_idx = round(probe_area_boundaries(1:end-1) + diff(probe_area_boundaries)/2);
 probe_area_centers = probe_coords_depth(probe_area_centers_idx);
-probe_area_labels = gui_data.st.acronym(probe_areas(probe_area_centers_idx));
+probe_area_labels = gui_data.st.safe_name(probe_areas(probe_area_centers_idx));
 
 % Get coordinate from bregma and probe-axis depth from surface
 % (round to nearest 10 microns)
