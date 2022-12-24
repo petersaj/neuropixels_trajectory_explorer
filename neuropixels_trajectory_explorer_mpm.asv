@@ -173,7 +173,7 @@ update_slice(probe_atlas_gui);
 button_fontsize = 12;
 
 %%% View angle buttons
-view_button_position = [0,0,0.1,0.05];
+view_button_position = [0,0,0.05,0.1];
 clear view_button_h
 view_button_h(1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',view_button_position,'String','Coronal','Callback',{@view_coronal,probe_atlas_gui});
@@ -1161,18 +1161,19 @@ if eventdata.Source.Value
     mpm_client.QueryMpmApplication;
     mpm_n_probes = mpm_client.AppData.Probes;
 
-    % Set number of probes equal to MPM-connected probe number
+    % Clear all user probes, add all MPM probes
+
     user_n_probes = length(gui_data.handles.probe_line);
     if user_n_probes > mpm_n_probes
-        for i = user_n_probes - mpm_n_probes
-            probe_remove([],[],probe_atlas_gui);
-            gui_data = guidata(probe_atlas_gui);
-        end
-    elseif user_n_probes < mpm_n_probes
-        for i = mpm_n_probes - user_n_probes
-            probe_add([],[],probe_atlas_gui);
-            gui_data = guidata(probe_atlas_gui);
-        end
+
+    elseif user_n_pr
+    for curr_user_probe = 1:length(gui_data.handles.probe_line)
+        probe_remove([],[],probe_atlas_gui);
+        gui_data = guidata(probe_atlas_gui);
+    end
+    for curr_mpm_probe = 1:mpm_n_probes
+        probe_add([],[],probe_atlas_gui);
+        gui_data = guidata(probe_atlas_gui);
     end
 
     % Save mpm_client in guidata
