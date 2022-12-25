@@ -100,7 +100,8 @@ brain_outline_patchdata = reducepatch(isosurface(ml_grid_bregma,ap_grid_bregma, 
 brain_outline = patch( ...
         'Vertices',brain_outline_patchdata.vertices, ...
         'Faces',brain_outline_patchdata.faces, ...
-        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1);
+        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1, ...
+        'PickableParts','none'); % make unclickable, since probes behind
 
 view([30,150]);
 caxis([0 300]);
@@ -117,7 +118,7 @@ probe_coordinates_text = uicontrol('Style','text','String','', ...
     'FontName','Consolas');
 
 % Set up the probe area axes
-axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8]);
+axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8],'TickDir','in');
 axes_probe_areas.ActivePositionProperty = 'position';
 set(axes_probe_areas,'FontSize',11);
 yyaxis(axes_probe_areas,'left');
@@ -151,6 +152,7 @@ gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates te
 % Make 3D rotation the default state
 h = rotate3d(axes_atlas);
 h.Enable = 'on';
+h.ButtonDownFilter = @rotate_clickable;
 % Update the slice whenever a rotation is completed
 h.ActionPostCallback = @update_slice;
 
@@ -842,10 +844,11 @@ probe_vector = [probe_ref_vector(:,1),diff(probe_ref_vector,[],2)./ ...
     norm(diff(probe_ref_vector,[],2))*probe_length + probe_ref_vector(:,1)];
 probe_line = line(gui_data.handles.axes_atlas, ...
     probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
-    'linewidth',3,'color','b','linestyle','-');
+    'linewidth',5,'color','b','linestyle','-');
 
 % Set up click-to-select (probe line or area axes)
 set(probe_line,'ButtonDownFcn',{@select_probe,probe_atlas_gui});
+set(probe_line,'Tag','rotate_clickable'); % (even during rotate3d)
 
 % Store probe data and axes
 gui_data.handles.probe_ref_line(new_probe_idx) = probe_ref_line; % Probe reference line on 3D atlas
@@ -864,6 +867,9 @@ update_probe_coordinates(probe_atlas_gui);
 
 % Update slice for newly selected probe
 update_slice(probe_atlas_gui);
+
+% Make GUI the current figure (not the toolbar)
+figure(probe_atlas_gui);
 
 end
 
@@ -1280,11 +1286,8 @@ function select_probe(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Get index of clicked probe (either line or axes)
-% selected_probe_idx = max([h == gui_data.handles.probe_line; ...
-%     h == gui_data.handles.probe_areas_plot],[],1);
-selected_probe_idx = max(h == gui_data.handles.probe_line,[],1);
-warning('NEED NEW WAY OF SELECTING PROBE');
+% Get index of clicked probe
+selected_probe_idx = h == gui_data.handles.probe_line;
 
 % Color probe/axes by selected/unselected
 selected_color = [0,0,1];
@@ -1297,6 +1300,23 @@ gui_data.selected_probe = find(selected_probe_idx);
 
 % Update gui data
 guidata(probe_atlas_gui, gui_data);
+
+% Update the slice and probe coordinates
+update_probe_coordinates(probe_atlas_gui);
+update_slice(probe_atlas_gui);
+
+end
+
+function flag = rotate_clickable(obj,event_obj)
+% If the object tag is 'rotate_clickable', then enable clicking even during
+% rotate3d
+objTag = obj.Tag;
+
+if strcmpi(obj.Tag,'rotate_clickable')
+    flag = true;
+else
+    flag = false;
+end
 
 end
 
