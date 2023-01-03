@@ -21,6 +21,12 @@ end
 if ~exist('readNPY','file')
    error('"npy-matlab" code not found, download here and add to matlab path: https://github.com/kwikteam/npy-matlab') 
 end
+if ~license('test','Statistics_Toolbox')
+    error('MATLAB statistics toolbox required (https://uk.mathworks.com/products/statistics.html)')
+end
+if ~license('test','Image_Toolbox')
+    error('MATLAB image processing toolbox required (https://uk.mathworks.com/products/image.html)')
+end
 
 % Initialize gui_data structure
 gui_data = struct;
