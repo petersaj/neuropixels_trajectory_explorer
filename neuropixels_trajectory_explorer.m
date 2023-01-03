@@ -13,7 +13,7 @@ function neuropixels_trajectory_explorer
 % Check MATLAB version
 matlab_version = version('-date');
 if str2num(matlab_version(end-3:end)) <= 2016
-    error('Old MATLAB - allen_ccf_npx requires 2016 or later');
+    error('Neuropixels Trajectory Explorer requires MATLAB 2016 or later');
 end
 
 % Check for dependencies
@@ -100,7 +100,8 @@ brain_outline_patchdata = reducepatch(isosurface(ml_grid_bregma,ap_grid_bregma, 
 brain_outline = patch( ...
         'Vertices',brain_outline_patchdata.vertices, ...
         'Faces',brain_outline_patchdata.faces, ...
-        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1);
+        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1, ...
+        'PickableParts','none'); % make unclickable, since probes behind
 
 view([30,150]);
 caxis([0 300]);
@@ -110,19 +111,6 @@ ylim([-8.5,5]);set(gca,'YTick',-8.5:0.5:5);
 zlim([-1,6.5]);set(gca,'ZTick',-1:0.5:6.5);
 grid on;
 
-% Set up the probe reference/actual
-probe_ref_top = [0,0,-0.1];
-probe_ref_bottom = [0,0,6];
-probe_ref_vector = [probe_ref_top',probe_ref_bottom'];
-probe_ref_line = line(probe_ref_vector(1,:),probe_ref_vector(2,:),probe_ref_vector(3,:), ...
-    'linewidth',1.5,'color','r','linestyle','--');
-
-probe_length = 3.840; % IMEC phase 3 (in mm)
-probe_vector = [probe_ref_vector(:,1),diff(probe_ref_vector,[],2)./ ...
-    norm(diff(probe_ref_vector,[],2))*probe_length + probe_ref_vector(:,1)];
-probe_line = line(probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
-    'linewidth',3,'color','b','linestyle','-');
-
 % Set up the text to display coordinates
 probe_coordinates_text = uicontrol('Style','text','String','', ...
     'Units','normalized','Position',[0,0.9,0.5,0.1], ...
@@ -130,15 +118,15 @@ probe_coordinates_text = uicontrol('Style','text','String','', ...
     'FontName','Consolas');
 
 % Set up the probe area axes
-axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8]);
+axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8],'TickDir','in');
 axes_probe_areas.ActivePositionProperty = 'position';
 set(axes_probe_areas,'FontSize',11);
 yyaxis(axes_probe_areas,'left');
 probe_areas_plot = image(0);
-set(axes_probe_areas,'XTick','','YLim',[0,probe_length],'YColor','k','YDir','reverse');
+set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 ylabel(axes_probe_areas,'Depth (mm)');
 yyaxis(axes_probe_areas,'right');
-set(axes_probe_areas,'XTick','','YLim',[0,probe_length],'YColor','k','YDir','reverse');
+set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
 colormap(axes_probe_areas,ccf_cmap);
 caxis([1,size(ccf_cmap,1)]);
@@ -149,25 +137,22 @@ gui_data.av = av; % Annotated atlas
 gui_data.st = st; % Labels table
 gui_data.cmap = ccf_cmap; % Atlas colormap
 gui_data.ccf_bregma_tform = ccf_bregma_tform;
-gui_data.probe_length = probe_length; % Length of probe
 gui_data.structure_plot_idx = []; % Plotted structures
-gui_data.probe_angle = [0;90]; % Probe angles in ML/DV
 
-%Store handles
+% Store handles
 gui_data.handles.cortex_outline = brain_outline;
 gui_data.handles.structure_patch = []; % Plotted structures
 gui_data.handles.axes_atlas = axes_atlas; % Axes with 3D atlas
 gui_data.handles.axes_probe_areas = axes_probe_areas; % Axes with probe areas
+gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe regions
 gui_data.handles.slice_plot = surface(axes_atlas,'EdgeColor','none'); % Slice on 3D atlas
 gui_data.handles.slice_volume = 'tv'; % The volume shown in the slice
-gui_data.handles.probe_ref_line = probe_ref_line; % Probe reference line on 3D atlas
-gui_data.handles.probe_line = probe_line; % Probe reference line on 3D atlas
-gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe regions
 gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates text
 
-% Make 3D rotation the default state (toggle on/off with 'r')
+% Make 3D rotation the default state
 h = rotate3d(axes_atlas);
 h.Enable = 'on';
+h.ButtonDownFilter = @rotate_clickable;
 % Update the slice whenever a rotation is completed
 h.ActionPostCallback = @update_slice;
 
@@ -180,9 +165,9 @@ set(probe_atlas_gui,'KeyReleaseFcn',@key_release);
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
 
-% Display the first slice and update the probe position
+% Add a probe, draw slice
+probe_add([],[],probe_atlas_gui);
 update_slice(probe_atlas_gui);
-update_probe_coordinates(probe_atlas_gui);
 
 
 %% Buttons
@@ -190,7 +175,7 @@ update_probe_coordinates(probe_atlas_gui);
 button_fontsize = 12;
 
 %%% View angle buttons
-view_button_position = [0,0,0.05,0.05];
+view_button_position = [0,0,0.1,0.05];
 clear view_button_h
 view_button_h(1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',view_button_position,'String','Coronal','Callback',{@view_coronal,probe_atlas_gui});
@@ -212,22 +197,18 @@ clear controls_h
 controls_h(1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
     'Units','normalized','Position',header_text_position,'String','Probe controls:', ...
     'BackgroundColor','w','FontWeight','bold');
+probe_controls_string = {'Whole probe: arrow','Depth: alt+arrow','Tip (angle): shift+arrow','Click probe to select'};
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Whole probe: arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Depth: alt+arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Probe tip: shift+arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','(changes probe angle)', ...
-    'BackgroundColor','w');
+    'Units','normalized','Position',header_text_position.*[1,1,1,length(probe_controls_string)], ...
+    'String',probe_controls_string,'BackgroundColor','w','HorizontalAlignment','left');
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Set entry','Callback',{@set_probe_entry,probe_atlas_gui});
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Set endpoint','Callback',{@set_probe_endpoint,probe_atlas_gui});
+controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
+    'Units','normalized','Position',button_position,'String','Add probe','Callback',{@probe_add,probe_atlas_gui});
+controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
+    'Units','normalized','Position',button_position,'String','Remove probe','Callback',{@probe_remove,probe_atlas_gui});
 
 % (area selector)
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
@@ -259,14 +240,14 @@ controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontS
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Dark mode','Callback',{@visibility_darkmode,probe_atlas_gui});
 
-% (other)
+% (Manipulator sync:)
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Other:', ...
+    'Units','normalized','Position',header_text_position,'String','Manipulator interface:', ...
     'BackgroundColor','w','FontWeight','bold');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',button_position,'String','Export coordinates','Callback',{@export_coordinates,probe_atlas_gui});
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',button_position,'String','Load/plot histology','Callback',{@probe_histology,probe_atlas_gui});
+
+% (New Scale sync mode)
+controls_h(end+1) = uicontrol('Parent',control_panel,'Style','togglebutton','FontSize',button_fontsize, ...
+    'Units','normalized','Position',button_position,'String','New Scale','Callback',{@newscale_mode,probe_atlas_gui}); 
 
 set(controls_h(1),'Position',header_text_position+[0,0.9,0,0]);
 align(fliplr(controls_h),'center','distribute');
@@ -332,16 +313,21 @@ end
 % Draw updated probe
 if any([ap_offset,ml_offset,probe_offset])
     % (AP/ML)
-    set(gui_data.handles.probe_ref_line,'XData',get(gui_data.handles.probe_ref_line,'XData') + ml_offset);
-    set(gui_data.handles.probe_line,'XData',get(gui_data.handles.probe_line,'XData') + ml_offset);
-    set(gui_data.handles.probe_ref_line,'YData',get(gui_data.handles.probe_ref_line,'YData') + ap_offset);
-    set(gui_data.handles.probe_line,'YData',get(gui_data.handles.probe_line,'YData') + ap_offset);
+    set(gui_data.handles.probe_ref_line(gui_data.selected_probe),'XData', ...
+        get(gui_data.handles.probe_ref_line(gui_data.selected_probe),'XData') + ml_offset);
+    set(gui_data.handles.probe_line(gui_data.selected_probe),'XData', ...
+        get(gui_data.handles.probe_line(gui_data.selected_probe),'XData') + ml_offset);
+    set(gui_data.handles.probe_ref_line(gui_data.selected_probe),'YData', ...
+        get(gui_data.handles.probe_ref_line(gui_data.selected_probe),'YData') + ap_offset);
+    set(gui_data.handles.probe_line(gui_data.selected_probe),'YData', ...
+        get(gui_data.handles.probe_line(gui_data.selected_probe),'YData') + ap_offset);
     % (probe axis)
-    old_probe_vector = cell2mat(get(gui_data.handles.probe_line,{'XData','YData','ZData'})');
+    old_probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe), ...
+        {'XData','YData','ZData'})');
     move_probe_vector = diff(old_probe_vector,[],2)./ ...
         norm(diff(old_probe_vector,[],2))*probe_offset;
     new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
-    set(gui_data.handles.probe_line,'XData',new_probe_vector(1,:), ...
+    set(gui_data.handles.probe_line(gui_data.selected_probe),'XData',new_probe_vector(1,:), ...
         'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
 end
 % (angle)
@@ -384,10 +370,12 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
     curr_campos = campos(gui_data.handles.axes_atlas);
     
     % Get probe vector
-    probe_ref_top = [gui_data.handles.probe_ref_line.XData(1), ...
-        gui_data.handles.probe_ref_line.YData(1),gui_data.handles.probe_ref_line.ZData(1)];
-    probe_ref_bottom = [gui_data.handles.probe_ref_line.XData(2), ...
-        gui_data.handles.probe_ref_line.YData(2),gui_data.handles.probe_ref_line.ZData(2)];
+    probe_ref_top = [gui_data.handles.probe_ref_line(gui_data.selected_probe).XData(1), ...
+        gui_data.handles.probe_ref_line(gui_data.selected_probe).YData(1), ...
+        gui_data.handles.probe_ref_line(gui_data.selected_probe).ZData(1)];
+    probe_ref_bottom = [gui_data.handles.probe_ref_line(gui_data.selected_probe).XData(2), ...
+        gui_data.handles.probe_ref_line(gui_data.selected_probe).YData(2), ...
+        gui_data.handles.probe_ref_line(gui_data.selected_probe).ZData(2)];
     probe_vector = probe_ref_top - probe_ref_bottom;
     
     % Get probe-camera vector
@@ -623,8 +611,8 @@ function gui_data = update_probe_angle(probe_atlas_gui,angle_change)
 gui_data = guidata(probe_atlas_gui);
 
 % Get the positions of the probe and trajectory reference
-probe_ref_vector = cell2mat(get(gui_data.handles.probe_ref_line,{'XData','YData','ZData'})');
-probe_vector = cell2mat(get(gui_data.handles.probe_line,{'XData','YData','ZData'})');
+probe_ref_vector = cell2mat(get(gui_data.handles.probe_ref_line(gui_data.selected_probe),{'XData','YData','ZData'})');
+probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe),{'XData','YData','ZData'})');
 
 % Update the probe trajectory reference angle
 
@@ -653,22 +641,26 @@ new_probe_ref_vector = [probe_ref_vector(:,1), ...
     diff(fliplr(-new_probe_ref_vector(2,:))), ...
     diff(fliplr(-new_probe_ref_vector(1,:))), ...
     diff(fliplr(-new_probe_ref_vector(3,:))));
-gui_data.probe_angle = [probe_azimuth,probe_elevation]*(360/(2*pi));
+gui_data.probe_angle{gui_data.selected_probe} = [probe_azimuth,probe_elevation]*(360/(2*pi));
 
-set(gui_data.handles.probe_ref_line,'XData',new_probe_ref_vector(1,:), ...
+set(gui_data.handles.probe_ref_line(gui_data.selected_probe), ...
+    'XData',new_probe_ref_vector(1,:), ...
     'YData',new_probe_ref_vector(2,:), ...
     'ZData',new_probe_ref_vector(3,:));
 
 % Update probe (retain depth)
 new_probe_vector = [new_probe_ref_vector(:,1),diff(new_probe_ref_vector,[],2)./ ...
-    norm(diff(new_probe_ref_vector,[],2))*gui_data.probe_length + new_probe_ref_vector(:,1)];
+    norm(diff(new_probe_ref_vector,[],2))*gui_data.probe_length(gui_data.selected_probe) ...
+    + new_probe_ref_vector(:,1)];
 
 probe_depth = sqrt(sum((probe_ref_vector(:,1) - probe_vector(:,1)).^2));
 new_probe_vector_depth = (diff(new_probe_vector,[],2)./ ...
     norm(diff(new_probe_vector,[],2))*probe_depth) + new_probe_vector;
 
-set(gui_data.handles.probe_line,'XData',new_probe_vector_depth(1,:), ...
-    'YData',new_probe_vector_depth(2,:),'ZData',new_probe_vector_depth(3,:));
+set(gui_data.handles.probe_line(gui_data.selected_probe), ...
+    'XData',new_probe_vector_depth(1,:), ...
+    'YData',new_probe_vector_depth(2,:), ...
+    'ZData',new_probe_vector_depth(3,:));
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -682,8 +674,8 @@ function update_probe_coordinates(probe_atlas_gui,varargin)
 gui_data = guidata(probe_atlas_gui);
 
 % Get the positions of the probe and trajectory reference
-probe_ref_vector = cell2mat(get(gui_data.handles.probe_ref_line,{'XData','YData','ZData'})');
-probe_vector = cell2mat(get(gui_data.handles.probe_line,{'XData','YData','ZData'})');
+probe_ref_vector = cell2mat(get(gui_data.handles.probe_ref_line(gui_data.selected_probe),{'XData','YData','ZData'})');
+probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe),{'XData','YData','ZData'})');
 
 trajectory_n_coords = round(max(abs(diff(probe_ref_vector,[],2)))*100); % 10um resolution
 [trajectory_ml_coords_bregma,trajectory_ap_coords_bregma,trajectory_dv_coords_bregma] = deal( ...
@@ -692,7 +684,7 @@ trajectory_n_coords = round(max(abs(diff(probe_ref_vector,[],2)))*100); % 10um r
     linspace(probe_ref_vector(3,1),probe_ref_vector(3,2),trajectory_n_coords));
 
 probe_n_coords = round(sqrt(sum(diff(probe_vector,[],2).^2))*100); % 10um resolution along active sites
-probe_coords_depth = linspace(0,gui_data.probe_length,probe_n_coords);
+probe_coords_depth = linspace(0,gui_data.probe_length(gui_data.selected_probe),probe_n_coords);
 [probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
     linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
     linspace(probe_vector(2,1),probe_vector(2,2),probe_n_coords), ...
@@ -759,7 +751,8 @@ probe_depth = norm(trajectory_brain_intersect - probe_vector(:,2));
 % Update the text
 % (manipulator angles)
 probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth, % .0f%c elevation', ...
-    gui_data.probe_angle(1),char(176),gui_data.probe_angle(2),char(176));
+    gui_data.probe_angle{gui_data.selected_probe}(1),char(176), ...
+    gui_data.probe_angle{gui_data.selected_probe}(2),char(176));
 % (probe insertion point and depth)
 probe_insertion_text = sprintf('Probe insertion: % .2f AP, % .2f ML, % .2f depth', ...
     probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_depth);
@@ -775,9 +768,16 @@ probe_text = {probe_angle_text,probe_insertion_text, ...
 set(gui_data.probe_coordinates_text,'String',probe_text);
 
 % Update the probe areas
+yyaxis(gui_data.handles.axes_probe_areas,'left');
+set(gui_data.handles.axes_probe_areas, ...
+    'YTick',[0:0.5:gui_data.probe_length(gui_data.selected_probe)], ...
+    'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
+
 yyaxis(gui_data.handles.axes_probe_areas,'right');
 set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas); 
-set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers,'YTickLabels',probe_area_labels);
+set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers, ...
+    'YTickLabels',probe_area_labels, ...
+    'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -805,6 +805,99 @@ function view_horizontal(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 view(gui_data.handles.axes_atlas,[0,90]);
 update_slice(probe_atlas_gui);
+end
+
+function probe_add(~,~,probe_atlas_gui)
+% Add probe
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Get index of new probe
+if ~isfield(gui_data.handles,'probe_line')
+    % (first probe)
+    new_probe_idx = 1;
+else
+    % (additional probes)
+    new_probe_idx = length(gui_data.handles.probe_line) + 1;
+end
+
+% Draw probe trajectory
+probe_ref_top = [0,0,-0.1];
+probe_ref_bottom = [0,0,6];
+probe_ref_vector = [probe_ref_top',probe_ref_bottom'];
+probe_ref_line = line(gui_data.handles.axes_atlas, ...
+    probe_ref_vector(1,:),probe_ref_vector(2,:),probe_ref_vector(3,:), ...
+    'linewidth',1.5,'color','r','linestyle','--');
+
+% Draw probe recording length
+probe_length = 3.840; % IMEC phase 3 (in mm)
+probe_vector = [probe_ref_vector(:,1),diff(probe_ref_vector,[],2)./ ...
+    norm(diff(probe_ref_vector,[],2))*probe_length + probe_ref_vector(:,1)];
+probe_line = line(gui_data.handles.axes_atlas, ...
+    probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
+    'linewidth',5,'color','b','linestyle','-');
+
+% Set up click-to-select (probe line or area axes)
+set(probe_line,'ButtonDownFcn',{@select_probe,probe_atlas_gui});
+set(probe_line,'Tag','rotate_clickable'); % (even during rotate3d)
+
+% Store probe data and axes
+gui_data.handles.probe_ref_line(new_probe_idx) = probe_ref_line; % Probe reference line on 3D atlas
+gui_data.handles.probe_line(new_probe_idx) = probe_line; % Probe reference line on 3D atlas
+gui_data.probe_length(new_probe_idx) = probe_length; % Length of probe
+gui_data.probe_angle{new_probe_idx} = [0;90]; % Probe angles in ML/DV
+
+% Update guidata
+guidata(probe_atlas_gui,gui_data);
+
+% Select probe
+select_probe(gui_data.handles.probe_line(new_probe_idx),[],probe_atlas_gui)
+
+% Update probe coordinates
+update_probe_coordinates(probe_atlas_gui);
+
+% Update slice for newly selected probe
+update_slice(probe_atlas_gui);
+
+% Make GUI the current figure (not the toolbar)
+figure(probe_atlas_gui);
+
+end
+
+function probe_remove(~,~,probe_atlas_gui)
+% Remove probe
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% If there's only one probe, don't do anything
+if length(gui_data.handles.probe_line) == 1
+    return
+end
+
+% Delete selected probe graphics
+delete(gui_data.handles.probe_ref_line(gui_data.selected_probe));
+delete(gui_data.handles.probe_line(gui_data.selected_probe));
+
+% Delete selected probe data and handles
+gui_data.handles.probe_ref_line(gui_data.selected_probe) = [];
+gui_data.handles.probe_line(gui_data.selected_probe) = [];
+gui_data.probe_length(gui_data.selected_probe) = [];
+gui_data.probe_angle(gui_data.selected_probe) = []; 
+
+% Update guidata
+guidata(probe_atlas_gui,gui_data);
+
+% Select first probe
+select_probe(gui_data.handles.probe_line(1),[],probe_atlas_gui);
+
+% Update probe coordinates
+update_probe_coordinates(probe_atlas_gui);
+
+% Update slice
+update_slice(probe_atlas_gui);
+
 end
 
 function add_area_list(h,eventdata,probe_atlas_gui)
@@ -1046,76 +1139,202 @@ set(gui_data.handles.axes_probe_areas.Title,'color',new_font_color)
 guidata(probe_atlas_gui,gui_data);
 end
 
-function export_coordinates(h,eventdata,probe_atlas_gui)
-% Get guidata
-gui_data = guidata(probe_atlas_gui);
-
-% Export the probe coordinates in Allen CCF to the workspace
-probe_vector = cell2mat(get(gui_data.handles.probe_line,{'XData','YData','ZData'})');
-probe_vector_ccf = round(probe_vector([1,3,2],:))';
-assignin('base','probe_vector_ccf',probe_vector_ccf)
-disp('Copied probe vector coordinates to workspace');
-end
-
-function probe_histology(h,eventdata,probe_atlas_gui)
-% Load histology points
-% UNDER CONSTRUCTION
-% (used to use SHARP-Track, now using mine)
+function newscale_mode(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-[probe_file,probe_path] = uigetfile('*.mat','Choose probe coordinate file');
-load([probe_path,probe_file]);
+if eventdata.Source.Value
 
-if exist('pointList','var')
-    histology_points = pointList.pointList{1};
-elseif exist('probe_ccf','var')
-    histology_points = probe_ccf(1).points; % only use first probe
+    % Initialize MPM client
+    % (if MPM client not in path, find it and add to the path)
+    mpm_client_file = 'NstMpmClientAccess.dll';
+    if ~exist(mpm_client_file,'file')
+        [~,mpm_client_path] = uigetfile(mpm_client_file,sprintf('Choose MPM client file (%s)',mpm_client_file));
+        mpm_client_filename = fullfile(mpm_client_path,mpm_client_file);
+        
+        if ~exist(mpm_client_filename,'file')
+            % error out if file doesn't exist
+            error('Please supply MPM client file (%s) - ',mpm_client_file)     
+        else
+            % if file exists, add folder to path and save
+            addpath(mpm_client_path)
+            savepath
+        end        
+    end
+
+    mpm_client_filename = which(mpm_client_file);
+    NET.addAssembly(mpm_client_filename);
+    import NstMpmClientAccess.*
+    mpm_client = NstMpmClientAccess.NstMpmClient;
+
+    % Get IP and port configuration (default is same computer, port 8080)
+    mpm_client_settings = inputdlg({'MPM IP address (Computer running VCS):', ...
+        'MPM Port (Coordinate Sys > ... > Http server) :'},'MPM',1,{'127.0.0.1','8080'});
+    mpm_client.IP_Address = mpm_client_settings{1};
+    mpm_client.Port = str2num(mpm_client_settings{2});
+
+    % Initial MPM query
+    mpm_client.QueryMpmApplication;
+
+    % (if there was a query problem, error out)
+    if any(mpm_client.LastError ~= '')
+        error('Error querying MPM: %s',mpm_client.LastError);
+    end
+
+    % Get number of probes connected in the MPM
+    mpm_n_probes = mpm_client.AppData.Probes;
+
+    % Set number of probes equal to MPM-connected probe number
+    user_n_probes = length(gui_data.handles.probe_line);
+    if user_n_probes > mpm_n_probes
+        for i = 1:(user_n_probes - mpm_n_probes)
+            probe_remove([],[],probe_atlas_gui);
+            gui_data = guidata(probe_atlas_gui);
+        end
+    elseif user_n_probes < mpm_n_probes
+        for i = 1:(mpm_n_probes - user_n_probes)
+            probe_add([],[],probe_atlas_gui);
+            gui_data = guidata(probe_atlas_gui);
+        end
+    end
+
+    % Save mpm_client in guidata
+    gui_data.mpm_client = mpm_client;
+    guidata(probe_atlas_gui, gui_data);
+
+    % Set up timer function for updating probe position
+    mpm_query_rate = 10; % MPM queries per second (hard-coding, can't update faster than 5Hz)
+    gui_data.mpm_timer_fcn = timer('TimerFcn', @(~,~)get_mpm_position(probe_atlas_gui), 'Period', 1/mpm_query_rate, 'ExecutionMode','fixedDelay', 'TasksToExecute', inf);
+    start(gui_data.mpm_timer_fcn)
+
+    % turn button green 
+    h.BackgroundColor = [0.39,0.83,0.07];
+else
+    try
+        stop(gui_data.mpm_timer_fcn)
+    catch
+    end
+    delete(gui_data.mpm_timer_fcn)
+
+    % turn button back to normal
+    h.BackgroundColor = [0.94,0.94,0.94];
 end
 
-r0 = mean(histology_points,1);
-xyz = bsxfun(@minus,histology_points,r0);
-[~,~,V] = svd(xyz,0);
-histology_probe_direction = V(:,1);
+% Update gui data
+guidata(probe_atlas_gui, gui_data);
 
-probe_eval_points = [-1000,1000];
-probe_line_endpoints = bsxfun(@plus,bsxfun(@times,probe_eval_points',histology_probe_direction'),r0);
+end
 
-% Philip's GUI: not saved in native CCF order?
-% plot3(histology_points(:,3),histology_points(:,1),histology_points(:,2),'.b','MarkerSize',20);
-% line(P(:,3),P(:,1),P(:,2),'color','k','linewidth',2)
+function get_mpm_position(probe_atlas_gui)
 
-% % Mine: saved in native CCF order [AP,DV,ML]
-plot3(gui_data.handles.axes_atlas, ...
-    histology_points(:,1),histology_points(:,3),histology_points(:,2),'.b','MarkerSize',20);
-line(gui_data.handles.axes_atlas, ...
-    probe_line_endpoints(:,1),probe_line_endpoints(:,3),probe_line_endpoints(:,2),'color','k','linewidth',2)
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
 
-% Place the probe on the histology best-fit axis
-[ap_max,dv_max,ml_max] = size(gui_data.tv);
+% Query MPM app for probe information
+gui_data.mpm_client.QueryMpmApplication;
 
-probe_ref_top = probe_line_endpoints(1,[1,3,2]);
-probe_ref_bottom = probe_line_endpoints(2,[1,3,2]);
-probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
+% Loop through all MPM probes, update data
+for curr_mpm_probe = 1:gui_data.mpm_client.AppData.Probes
 
-set(gui_data.handles.probe_ref_line,'XData',probe_ref_vector(1,:), ...
-    'YData',probe_ref_vector(2,:), ...
-    'ZData',probe_ref_vector(3,:));
+    % Get given MPM probe data (0-indexed)
+    mpm_probe_info = gui_data.mpm_client.AppData.GetProbe(curr_mpm_probe-1);
 
-probe_vector = [probe_ref_vector(:,1),diff(probe_ref_vector,[],2)./ ...
-    norm(diff(probe_ref_vector,[],2))*gui_data.probe_length + probe_ref_vector(:,1)];
-set(gui_data.handles.probe_line,'XData',probe_vector(1,:), ...
-    'YData',probe_vector(2,:),'ZData',probe_vector(3,:));
+    % Calculate position of probe
+    probe_tip = [mpm_probe_info.Tip_X_ML; mpm_probe_info.Tip_Y_AP; -mpm_probe_info.Tip_Z_DV];
 
-% Upload gui_data
-[theta,phi] = cart2sph(diff(probe_ref_vector(1,:)),diff(probe_ref_vector(2,:)),diff(probe_ref_vector(3,:)));
-gui_data.probe_angle = ([theta,phi]/(2*pi))*360;
+    % (mpm 0 = straight down --> rotate to move from tip to top)
+    % (using length of recording sites not full length of the probe from VCS)
+    [x, y, z] = sph2cart(deg2rad(360-mpm_probe_info.Polar), deg2rad(270-mpm_probe_info.Pitch), gui_data.probe_length(curr_mpm_probe));
+    probe_top = probe_tip + [x; y; z];
+
+    probe_vector = [probe_top, probe_tip];
+
+    % Update angles
+    gui_data.probe_angle{curr_mpm_probe} = [360-mpm_probe_info.Polar, 90-mpm_probe_info.Pitch];
+
+    % Change probe location
+    set(gui_data.handles.probe_line(curr_mpm_probe), ...
+        'XData',probe_vector(1,:), ...
+        'YData',probe_vector(2,:), ...
+        'ZData',probe_vector(3,:));
+
+    % Update the probe and trajectory reference
+    ml_lim = xlim(gui_data.handles.axes_atlas);
+    ap_lim = ylim(gui_data.handles.axes_atlas);
+    dv_lim = zlim(gui_data.handles.axes_atlas);
+    max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
+    [x, y, z] = sph2cart(deg2rad(gui_data.probe_angle{curr_mpm_probe}(1)), ...
+        deg2rad(gui_data.probe_angle{curr_mpm_probe}(2)), max_ref_length);
+
+    % Move probe reference (draw line through point and DV 0 with max length)
+    probe_ref_top_ap = interp1(probe_tip(3)+[0,z],probe_tip(2)+[0,y],0,'linear','extrap');
+    probe_ref_top_ml = interp1(probe_tip(3)+[0,z],probe_tip(1)+[0,x],0,'linear','extrap');
+
+    probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
+    probe_ref_bottom = probe_ref_top + [x,y,z];
+    probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
+
+    set(gui_data.handles.probe_ref_line(curr_mpm_probe), ...
+        'XData',probe_ref_vector(1,:), ...
+        'YData',probe_ref_vector(2,:), ...
+        'ZData',probe_ref_vector(3,:));
+
+    % Update gui data
+    guidata(probe_atlas_gui, gui_data);
+
+    % Update the slice and probe coordinates
+    update_probe_coordinates(probe_atlas_gui);
+end
+
+% Select MPM-selected probe (0-indexed)
+mpm_selected_probe = gui_data.mpm_client.AppData.SelectedProbe+1;
+select_probe(gui_data.handles.probe_line(mpm_selected_probe),[],probe_atlas_gui)
+
+% Update slice
+update_slice(probe_atlas_gui);
+
+end
+
+%% General functions
+
+function select_probe(h,eventdata,probe_atlas_gui)
+% Select active/controllable probe
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Get index of clicked probe
+selected_probe_idx = h == gui_data.handles.probe_line;
+
+% Color probe/axes by selected/unselected
+selected_color = [0,0,1];
+unselected_color = [0,0,0];
+set(gui_data.handles.probe_line(selected_probe_idx),'color',selected_color);
+set(gui_data.handles.probe_line(~selected_probe_idx),'color',unselected_color);
+
+% Set selected probe
+gui_data.selected_probe = find(selected_probe_idx);
+
+% Update gui data
 guidata(probe_atlas_gui, gui_data);
 
 % Update the slice and probe coordinates
-update_slice(probe_atlas_gui);
 update_probe_coordinates(probe_atlas_gui);
+update_slice(probe_atlas_gui);
+
+end
+
+function flag = rotate_clickable(obj,event_obj)
+% If the object tag is 'rotate_clickable', then enable clicking even during
+% rotate3d
+objTag = obj.Tag;
+
+if strcmpi(obj.Tag,'rotate_clickable')
+    flag = true;
+else
+    flag = false;
+end
 
 end
 
