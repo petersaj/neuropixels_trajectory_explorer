@@ -197,18 +197,10 @@ clear controls_h
 controls_h(1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
     'Units','normalized','Position',header_text_position,'String','Probe controls:', ...
     'BackgroundColor','w','FontWeight','bold');
+probe_controls_string = {'Whole probe: arrow','Depth: alt+arrow','Tip (angle): shift+arrow','Click probe to select'};
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Whole probe: arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Depth: alt+arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Probe tip: shift+arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','(changes probe angle)', ...
-    'BackgroundColor','w');
+    'Units','normalized','Position',header_text_position.*[1,1,1,length(probe_controls_string)], ...
+    'String',probe_controls_string,'BackgroundColor','w','HorizontalAlignment','left');
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Set entry','Callback',{@set_probe_entry,probe_atlas_gui});
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
@@ -248,14 +240,14 @@ controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontS
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Dark mode','Callback',{@visibility_darkmode,probe_atlas_gui});
 
-% (Manipulator interface)
+% (Manipulator sync:)
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Manipulator:', ...
+    'Units','normalized','Position',header_text_position,'String','Manipulator interface:', ...
     'BackgroundColor','w','FontWeight','bold');
 
-% (MPM-sync mode)
+% (New Scale sync mode)
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','togglebutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',button_position,'String','MPM mode','Callback',{@mpm_mode,probe_atlas_gui}); 
+    'Units','normalized','Position',button_position,'String','New Scale','Callback',{@newscale_mode,probe_atlas_gui}); 
 
 set(controls_h(1),'Position',header_text_position+[0,0.9,0,0]);
 align(fliplr(controls_h),'center','distribute');
@@ -1147,7 +1139,7 @@ set(gui_data.handles.axes_probe_areas.Title,'color',new_font_color)
 guidata(probe_atlas_gui,gui_data);
 end
 
-function mpm_mode(h,eventdata,probe_atlas_gui)
+function newscale_mode(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1155,27 +1147,53 @@ gui_data = guidata(probe_atlas_gui);
 if eventdata.Source.Value
 
     % Initialize MPM client
-    mpm_client_path = 'C:\Users\peter\OneDrive\Desktop\MPM_BetaSWInstall\Examples\NstMpmClientDemo\NstMpmClientDemoExe\NstMpmClientAccess.dll'; % TODO: user set
-    NET.addAssembly(mpm_client_path);
+    % (if MPM client not in path, find it and add to the path)
+    mpm_client_file = 'NstMpmClientAccess.dll';
+    if ~exist(mpm_client_file,'file')
+        [~,mpm_client_path] = uigetfile(mpm_client_file,sprintf('Choose MPM client file (%s)',mpm_client_file));
+        mpm_client_filename = fullfile(mpm_client_path,mpm_client_file);
+        
+        if ~exist(mpm_client_filename,'file')
+            % error out if file doesn't exist
+            error('Please supply MPM client file (%s) - ',mpm_client_file)     
+        else
+            % if file exists, add folder to path and save
+            addpath(mpm_client_path)
+            savepath
+        end        
+    end
+
+    mpm_client_filename = which(mpm_client_file);
+    NET.addAssembly(mpm_client_filename);
     import NstMpmClientAccess.*
     mpm_client = NstMpmClientAccess.NstMpmClient;
 
-    mpm_client.IP_Address = "127.0.0.1"; % TODO: user control
-    mpm_client.Port = 8080; % TODO: user control
+    % Get IP and port configuration (default is same computer, port 8080)
+    mpm_client_settings = inputdlg({'MPM IP address (Computer running VCS):', ...
+        'MPM Port (Coordinate Sys > ... > Http server) :'},'MPM',1,{'127.0.0.1','8080'});
+    mpm_client.IP_Address = mpm_client_settings{1};
+    mpm_client.Port = str2num(mpm_client_settings{2});
 
     % Initial MPM query
     mpm_client.QueryMpmApplication;
+
+    % (if there was a query problem, error out)
+    if any(mpm_client.LastError ~= '')
+        error('Error querying MPM: %s',mpm_client.LastError);
+    end
+
+    % Get number of probes connected in the MPM
     mpm_n_probes = mpm_client.AppData.Probes;
 
     % Set number of probes equal to MPM-connected probe number
     user_n_probes = length(gui_data.handles.probe_line);
     if user_n_probes > mpm_n_probes
-        for i = user_n_probes - mpm_n_probes
+        for i = 1:(user_n_probes - mpm_n_probes)
             probe_remove([],[],probe_atlas_gui);
             gui_data = guidata(probe_atlas_gui);
         end
     elseif user_n_probes < mpm_n_probes
-        for i = mpm_n_probes - user_n_probes
+        for i = 1:(mpm_n_probes - user_n_probes)
             probe_add([],[],probe_atlas_gui);
             gui_data = guidata(probe_atlas_gui);
         end
@@ -1193,7 +1211,10 @@ if eventdata.Source.Value
     % turn button green 
     h.BackgroundColor = [0.39,0.83,0.07];
 else
-    stop(gui_data.mpm_timer_fcn)
+    try
+        stop(gui_data.mpm_timer_fcn)
+    catch
+    end
     delete(gui_data.mpm_timer_fcn)
 
     % turn button back to normal
@@ -1215,9 +1236,6 @@ gui_data.mpm_client.QueryMpmApplication;
 
 % Loop through all MPM probes, update data
 for curr_mpm_probe = 1:gui_data.mpm_client.AppData.Probes
-
-    % Select probe
-    select_probe(gui_data.handles.probe_line(curr_mpm_probe),[],probe_atlas_gui)
 
     % Get given MPM probe data (0-indexed)
     mpm_probe_info = gui_data.mpm_client.AppData.GetProbe(curr_mpm_probe-1);

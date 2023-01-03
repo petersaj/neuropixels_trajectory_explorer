@@ -100,7 +100,8 @@ brain_outline_patchdata = reducepatch(isosurface(ml_grid_bregma,ap_grid_bregma, 
 brain_outline = patch( ...
         'Vertices',brain_outline_patchdata.vertices, ...
         'Faces',brain_outline_patchdata.faces, ...
-        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1);
+        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1, ...
+        'PickableParts','none'); % make unclickable, since probes behind
 
 view([30,150]);
 caxis([0 300]);
@@ -117,7 +118,7 @@ probe_coordinates_text = uicontrol('Style','text','String','', ...
     'FontName','Consolas');
 
 % Set up the probe area axes
-axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8]);
+axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8],'TickDir','in');
 axes_probe_areas.ActivePositionProperty = 'position';
 set(axes_probe_areas,'FontSize',11);
 yyaxis(axes_probe_areas,'left');
@@ -151,6 +152,7 @@ gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates te
 % Make 3D rotation the default state
 h = rotate3d(axes_atlas);
 h.Enable = 'on';
+h.ButtonDownFilter = @rotate_clickable;
 % Update the slice whenever a rotation is completed
 h.ActionPostCallback = @update_slice;
 
@@ -173,7 +175,7 @@ update_slice(probe_atlas_gui);
 button_fontsize = 12;
 
 %%% View angle buttons
-view_button_position = [0,0,0.05,0.1];
+view_button_position = [0,0,0.1,0.05];
 clear view_button_h
 view_button_h(1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',view_button_position,'String','Coronal','Callback',{@view_coronal,probe_atlas_gui});
@@ -195,18 +197,10 @@ clear controls_h
 controls_h(1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
     'Units','normalized','Position',header_text_position,'String','Probe controls:', ...
     'BackgroundColor','w','FontWeight','bold');
+probe_controls_string = {'Whole probe: arrow','Depth: alt+arrow','Tip (angle): shift+arrow','Click probe to select'};
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Whole probe: arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Depth: alt+arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Probe tip: shift+arrow keys', ...
-    'BackgroundColor','w');
-controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','(changes probe angle)', ...
-    'BackgroundColor','w');
+    'Units','normalized','Position',header_text_position.*[1,1,1,length(probe_controls_string)], ...
+    'String',probe_controls_string,'BackgroundColor','w','HorizontalAlignment','left');
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Set entry','Callback',{@set_probe_entry,probe_atlas_gui});
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
@@ -246,14 +240,14 @@ controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontS
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Dark mode','Callback',{@visibility_darkmode,probe_atlas_gui});
 
-% (Manipulator interface)
+% (Manipulator sync:)
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','text','FontSize',button_fontsize, ...
-    'Units','normalized','Position',header_text_position,'String','Manipulator:', ...
+    'Units','normalized','Position',header_text_position,'String','Manipulator interface:', ...
     'BackgroundColor','w','FontWeight','bold');
 
-% (MPM-sync mode)
+% (New Scale sync mode)
 controls_h(end+1) = uicontrol('Parent',control_panel,'Style','togglebutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',button_position,'String','MPM mode','Callback',{@mpm_mode,probe_atlas_gui}); 
+    'Units','normalized','Position',button_position,'String','New Scale','Callback',{@newscale_mode,probe_atlas_gui}); 
 
 set(controls_h(1),'Position',header_text_position+[0,0.9,0,0]);
 align(fliplr(controls_h),'center','distribute');
@@ -842,10 +836,11 @@ probe_vector = [probe_ref_vector(:,1),diff(probe_ref_vector,[],2)./ ...
     norm(diff(probe_ref_vector,[],2))*probe_length + probe_ref_vector(:,1)];
 probe_line = line(gui_data.handles.axes_atlas, ...
     probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
-    'linewidth',3,'color','b','linestyle','-');
+    'linewidth',5,'color','b','linestyle','-');
 
 % Set up click-to-select (probe line or area axes)
 set(probe_line,'ButtonDownFcn',{@select_probe,probe_atlas_gui});
+set(probe_line,'Tag','rotate_clickable'); % (even during rotate3d)
 
 % Store probe data and axes
 gui_data.handles.probe_ref_line(new_probe_idx) = probe_ref_line; % Probe reference line on 3D atlas
@@ -864,6 +859,9 @@ update_probe_coordinates(probe_atlas_gui);
 
 % Update slice for newly selected probe
 update_slice(probe_atlas_gui);
+
+% Make GUI the current figure (not the toolbar)
+figure(probe_atlas_gui);
 
 end
 
@@ -1141,7 +1139,7 @@ set(gui_data.handles.axes_probe_areas.Title,'color',new_font_color)
 guidata(probe_atlas_gui,gui_data);
 end
 
-function mpm_mode(h,eventdata,probe_atlas_gui)
+function newscale_mode(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1149,31 +1147,52 @@ gui_data = guidata(probe_atlas_gui);
 if eventdata.Source.Value
 
     % Initialize MPM client
-    mpm_client_path = 'C:\Users\peter\OneDrive\Desktop\MPM_BetaSWInstall\Examples\NstMpmClientDemo\NstMpmClientDemoExe\NstMpmClientAccess.dll'; % TODO: user set
-    NET.addAssembly(mpm_client_path);
+    % (if MPM client not in path, find it and add to the path)
+    mpm_client_file = 'NstMpmClientAccess.dll';
+    if ~exist(mpm_client_file,'file')
+        [~,mpm_client_path] = uigetfile(mpm_client_file,sprintf('Choose MPM client file (%s)',mpm_client_file));
+        mpm_client_filename = fullfile(mpm_client_path,mpm_client_file);
+        
+        if ~exist(mpm_client_filename,'file')
+            % error out if file doesn't exist
+            error('Please supply MPM client file (%s) - ',mpm_client_file)     
+        else
+            % if file exists, add folder to path and save
+            addpath(mpm_client_path)
+            savepath
+        end        
+    end
+
+    mpm_client_filename = which(mpm_client_file);
+    NET.addAssembly(mpm_client_filename);
     import NstMpmClientAccess.*
     mpm_client = NstMpmClientAccess.NstMpmClient;
 
-    mpm_client.IP_Address = "127.0.0.1"; % TODO: user control
-    mpm_client.Port = 8080; % TODO: user control
+    mpm_client.IP_Address = '127.0.0.1'; % Set default IP (same computer)
+    mpm_client.Port = 8080; % Set default port (8080)
 
     % Initial MPM query
     mpm_client.QueryMpmApplication;
+
+    % (if there was a query problem, error out)
+    if mpm_client.LastError ~= ''
+        error('Error querying MPM: %s',mpm_client.LastError);
+    end
+
     mpm_n_probes = mpm_client.AppData.Probes;
 
-    % Clear all user probes, add all MPM probes
-
+    % Set number of probes equal to MPM-connected probe number
     user_n_probes = length(gui_data.handles.probe_line);
     if user_n_probes > mpm_n_probes
-
-    elseif user_n_pr
-    for curr_user_probe = 1:length(gui_data.handles.probe_line)
-        probe_remove([],[],probe_atlas_gui);
-        gui_data = guidata(probe_atlas_gui);
-    end
-    for curr_mpm_probe = 1:mpm_n_probes
-        probe_add([],[],probe_atlas_gui);
-        gui_data = guidata(probe_atlas_gui);
+        for i = 1:(user_n_probes - mpm_n_probes)
+            probe_remove([],[],probe_atlas_gui);
+            gui_data = guidata(probe_atlas_gui);
+        end
+    elseif user_n_probes < mpm_n_probes
+        for i = 1:(mpm_n_probes - user_n_probes)
+            probe_add([],[],probe_atlas_gui);
+            gui_data = guidata(probe_atlas_gui);
+        end
     end
 
     % Save mpm_client in guidata
@@ -1210,9 +1229,6 @@ gui_data.mpm_client.QueryMpmApplication;
 
 % Loop through all MPM probes, update data
 for curr_mpm_probe = 1:gui_data.mpm_client.AppData.Probes
-
-    % Select probe
-    select_probe(gui_data.handles.probe_line(curr_mpm_probe),[],probe_atlas_gui)
 
     % Get given MPM probe data (0-indexed)
     mpm_probe_info = gui_data.mpm_client.AppData.GetProbe(curr_mpm_probe-1);
@@ -1281,11 +1297,8 @@ function select_probe(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Get index of clicked probe (either line or axes)
-% selected_probe_idx = max([h == gui_data.handles.probe_line; ...
-%     h == gui_data.handles.probe_areas_plot],[],1);
-selected_probe_idx = max(h == gui_data.handles.probe_line,[],1);
-warning('NEED NEW WAY OF SELECTING PROBE');
+% Get index of clicked probe
+selected_probe_idx = h == gui_data.handles.probe_line;
 
 % Color probe/axes by selected/unselected
 selected_color = [0,0,1];
@@ -1298,6 +1311,23 @@ gui_data.selected_probe = find(selected_probe_idx);
 
 % Update gui data
 guidata(probe_atlas_gui, gui_data);
+
+% Update the slice and probe coordinates
+update_probe_coordinates(probe_atlas_gui);
+update_slice(probe_atlas_gui);
+
+end
+
+function flag = rotate_clickable(obj,event_obj)
+% If the object tag is 'rotate_clickable', then enable clicking even during
+% rotate3d
+objTag = obj.Tag;
+
+if strcmpi(obj.Tag,'rotate_clickable')
+    flag = true;
+else
+    flag = false;
+end
 
 end
 
