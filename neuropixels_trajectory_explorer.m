@@ -403,7 +403,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
     ap_lim = ylim(gui_data.handles.axes_atlas);
     dv_lim = zlim(gui_data.handles.axes_atlas);
 
-    slice_px_space = 0.01; % resolution of slice to grab
+    slice_px_space = 0.03; % resolution of slice to grab
     [~,cam_plane] = max(abs(normal_vector./norm(normal_vector)));
     switch cam_plane
         case 1
