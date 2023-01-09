@@ -61,7 +61,7 @@ ccf_cmap = horzcat(vertcat(ccf_cmap_c1{:}),vertcat(ccf_cmap_c2{:}),vertcat(ccf_c
 bregma_ccf = [540,44,570]; % [AP,DV,ML]
 ccf_translation_tform = eye(4)+[zeros(3,4);-bregma_ccf([3,1,2]),0];
 
-% (reflect AP/ML, scale DV value from Josh Siegle, convert 10um to 1mm)
+% (reflect AP/ML, scale DV value "Toronto MRI transform", convert 10um to 1mm)
 scale = [-1.031,-0.952,0.885]./100; % [AP,ML,DV]
 ccf_scale_tform = eye(4).*[scale,1]';
 
