@@ -58,11 +58,11 @@ ccf_cmap = horzcat(vertcat(ccf_cmap_c1{:}),vertcat(ccf_cmap_c2{:}),vertcat(ccf_c
 
 % (translation values from our bregma estimate: AP/ML from Paxinos, DV from
 % rough MRI estimate)
-bregma_ccf = [540,44,570]; % [AP,DV,ML]
+bregma_ccf = [500,33,570.5]; % [AP,DV,ML]
 ccf_translation_tform = eye(4)+[zeros(3,4);-bregma_ccf([3,1,2]),0];
 
-% (reflect AP/ML, scale DV value from Josh Siegle, convert 10um to 1mm)
-scale = [-1,-1,0.9434]./100; % [AP,ML,DV]
+% (scaling "Toronto MRI transform", reflect AP/ML, convert 10um to 1mm)
+scale = [-1.031,-0.952,0.885]./100; % [AP,ML,DV]
 ccf_scale_tform = eye(4).*[scale,1]';
 
 % (rotation values from IBL estimate)
@@ -73,7 +73,7 @@ ccf_rotation_tform = ...
     0 sind(ap_rotation) cosd(ap_rotation) 0; ...
     0 0 0 1];
 
-ccf_bregma_tform_matrix = ccf_translation_tform*ccf_rotation_tform*ccf_scale_tform;
+ccf_bregma_tform_matrix = ccf_translation_tform*ccf_scale_tform*ccf_rotation_tform;
 ccf_bregma_tform = affine3d(ccf_bregma_tform_matrix);
 
 % ~~~~ Make GUI axes and objects
@@ -111,10 +111,11 @@ brain_outline = patch( ...
 
 view([30,150]);
 caxis([0 300]);
-
-xlim([-5.2,5.2]);set(gca,'XTick',-5:0.5:5);
-ylim([-8.5,5]);set(gca,'YTick',-8.5:0.5:5);
-zlim([-1,6.5]);set(gca,'ZTick',-1:0.5:6.5);
+xlim([-5.4,5.4]);ylim([-7.5,5]);zlim([-1,7.0]);
+grid_spacing = 0.5;
+set(gca,'XTick',min(xlim)-grid_spacing:grid_spacing:max(xlim)+grid_spacing);
+set(gca,'YTick',min(xlim)-grid_spacing:grid_spacing:max(xlim)+grid_spacing);
+set(gca,'ZTick',min(xlim)-grid_spacing:grid_spacing:max(xlim)+grid_spacing);
 grid on;
 
 % Set up the text to display coordinates
