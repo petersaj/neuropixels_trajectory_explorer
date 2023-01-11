@@ -1212,6 +1212,9 @@ if eventdata.Source.Value
     % Set up timer function for updating probe position
     mpm_query_rate = 10; % MPM queries per second (hard-coding, can't update faster than 5Hz)
     gui_data.mpm_timer_fcn = timer('TimerFcn', @(~,~)get_mpm_position(probe_atlas_gui), 'Period', 1/mpm_query_rate, 'ExecutionMode','fixedDelay', 'TasksToExecute', inf);
+    % store timer function and start (necessary for the standalone, which
+    % deletes function on 'start')
+    guidata(probe_atlas_gui, gui_data);
     start(gui_data.mpm_timer_fcn)
 
     % turn button green 
