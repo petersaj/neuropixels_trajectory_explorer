@@ -6,9 +6,9 @@ Neuropixels trajectory explorer with the Allen CCF mouse atlas or Waxholm rat at
 **Keep the GUI up-to-date:** there are semi-regular upgrades (sometimes just a feature, sometimes something critical like getting a better estimate of distances and angles), so make sure to pull the current repository whenever planning a new trajectory.
 
 Mouse CCF scaling, rotation, and bregma notes:
-* the CCF is slightly stretched in the DV axis (because it's based on a single mouse with an unsually tall brain), currently estimated here as 94.3%
-* The CCF AP rotation is arbitrary with reference to the skull, and this angle has been estimated as 5 degrees (from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3). This is implemented here, with the CCF being tilted nose-down by 5 degrees.
-* Bregma has been approximated in AP by matching the Paxinos atlas slice at AP=0 to the CCF, the ML position is the midline, and the DV position is a very rough approximation from matching an MRI image (this DV coordinate shouldn't be used - all actual coordinates should be measured from the brain surface for better accuracy)
+* The CCF scaling is based on a single mouse. To approximate average scaling, the "Toronto MRI" transform is used: 1.031 * ap, 0.952 * ml, 0.885* dv (based on [this data](https://www.nature.com/articles/s41467-018-04921-2), MRI-CCF fits by Steven J West from the IBL, configured as CCF transform by Dan Birman for [Pinpoint](https://github.com/VirtualBrainLab/Pinpoint))
+* The CCF AP rotation is arbitrary with reference to the skull, this angle here is 5 degrees nose-down (as estimated in [this paper](https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3)).
+* Bregma has been approximated in AP by visually matching the Paxinos atlas slice at AP=0, the ML position is the midline, and the DV position (i.e. distance from brain surface to skull surface) is a very rough approximation from matching an MRI image.
 
 Any issues/bugs/suggestions, please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button.
 
