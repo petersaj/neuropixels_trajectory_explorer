@@ -83,7 +83,7 @@ probe_atlas_gui = figure('Toolbar','none','Menubar','none','color','w', ...
     'Name','Neuropixels Trajectory Explorer','Units','normalized','Position',[0.21,0.2,0.7,0.7]);
 
 % Set up the atlas axes
-axes_atlas = axes('Position',[-0.3,0.1,1.2,0.8],'ZDir','reverse');
+axes_atlas = axes('Position',[-0.12,0.05,1,0.9],'ZDir','reverse');
 axis(axes_atlas,'vis3d','equal','off','manual'); hold(axes_atlas,'on');
 
 view([30,150]);
@@ -102,14 +102,14 @@ probe_coordinates_text = uicontrol('Style','text','String','', ...
     'FontName','Consolas');
 
 % Set up the probe area axes
-axes_probe_areas = axes('Position',[0.7,0.1,0.03,0.8],'TickDir','in');
+axes_probe_areas = axes('Position',[0.90,0.01,0.03,0.95],'TickDir','in');
 axes_probe_areas.ActivePositionProperty = 'position';
 set(axes_probe_areas,'FontSize',11);
-yyaxis(axes_probe_areas,'left');
-probe_areas_plot = image(0);
+yyaxis(axes_probe_areas,'right');
 set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 ylabel(axes_probe_areas,'Depth (mm)');
-yyaxis(axes_probe_areas,'right');
+yyaxis(axes_probe_areas,'left');
+probe_areas_plot = image(0);
 set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
 colormap(axes_probe_areas,ccf_cmap);
@@ -172,16 +172,18 @@ uimenu(mesh_areas_menu,'Text','Search areas','MenuSelectedFcn',{@add_area_search
 uimenu(mesh_areas_menu,'Text','Hierarchy areas','MenuSelectedFcn',{@add_area_hierarchy,probe_atlas_gui});
 uimenu(mesh_areas_menu,'Text','Remove areas','MenuSelectedFcn',{@remove_area,probe_atlas_gui});
 
-visibility_menu = uimenu(probe_atlas_gui,'Text','Visibility');
-slice_menu = uimenu(visibility_menu,'Text','Slice');
-uimenu(slice_menu,'Text','Anatomical','MenuSelectedFcn',{@visibility_tv_slice,probe_atlas_gui},'Checked','on')
-uimenu(slice_menu,'Text','Annotated','MenuSelectedFcn',{@visibility_av_slice,probe_atlas_gui})
-
-uimenu(visibility_menu,'Text','Brain outline','MenuSelectedFcn',{@visibility_brain_outline,probe_atlas_gui},'Checked','on');
-uimenu(visibility_menu,'Text','Grid','MenuSelectedFcn',{@visibility_grid,probe_atlas_gui});
-uimenu(visibility_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atlas_gui},'Checked','on');
-uimenu(visibility_menu,'Text','3D areas','MenuSelectedFcn',{@visibility_3d_areas,probe_atlas_gui},'Checked','on');
-uimenu(visibility_menu,'Text','Dark mode','MenuSelectedFcn',{@visibility_darkmode,probe_atlas_gui});
+display_menu = uimenu(probe_atlas_gui,'Text','Display');
+name_menu = uimenu(display_menu,'Text','Region names');
+    uimenu(name_menu,'Text','Acronym','MenuSelectedFcn',{@set_name_acronym,probe_atlas_gui},'Checked','on')
+    uimenu(name_menu,'Text','Full','MenuSelectedFcn',{@set_name_full,probe_atlas_gui})
+slice_menu = uimenu(display_menu,'Text','Slice');
+    uimenu(slice_menu,'Text','Anatomical','MenuSelectedFcn',{@visibility_tv_slice,probe_atlas_gui},'Checked','on')
+    uimenu(slice_menu,'Text','Annotated','MenuSelectedFcn',{@visibility_av_slice,probe_atlas_gui})
+uimenu(display_menu,'Text','Brain outline','MenuSelectedFcn',{@visibility_brain_outline,probe_atlas_gui},'Checked','on');
+uimenu(display_menu,'Text','Grid','MenuSelectedFcn',{@visibility_grid,probe_atlas_gui});
+uimenu(display_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atlas_gui},'Checked','on');
+uimenu(display_menu,'Text','3D areas','MenuSelectedFcn',{@visibility_3d_areas,probe_atlas_gui},'Checked','on');
+uimenu(display_menu,'Text','Dark mode','MenuSelectedFcn',{@visibility_darkmode,probe_atlas_gui});
 
 manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
 uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
@@ -691,7 +693,12 @@ probe_area_boundaries = intersect(unique([find(~isnan(probe_areas),1,'first'); .
     find(diff(probe_areas) ~= 0);find(~isnan(probe_areas),1,'last')]),find(~isnan(probe_areas)));
 probe_area_centers_idx = round(probe_area_boundaries(1:end-1) + diff(probe_area_boundaries)/2);
 probe_area_centers = probe_coords_depth(probe_area_centers_idx);
-probe_area_labels = gui_data.st.safe_name(probe_areas(probe_area_centers_idx));
+
+% Label areas by acronym/full name
+if ~isfield(gui_data,'display_region_name')
+    gui_data.display_region_name = 'acronym';
+end
+probe_area_labels = gui_data.st.(gui_data.display_region_name)(probe_areas(probe_area_centers_idx));
 
 % Get coordinate from bregma and probe-axis depth from surface
 % (round to nearest 10 microns)
@@ -718,12 +725,12 @@ probe_text = {probe_angle_text,probe_insertion_text, ...
 set(gui_data.probe_coordinates_text,'String',probe_text);
 
 % Update the probe areas
-yyaxis(gui_data.handles.axes_probe_areas,'left');
+yyaxis(gui_data.handles.axes_probe_areas,'right');
 set(gui_data.handles.axes_probe_areas, ...
     'YTick',[0:0.5:gui_data.probe_length(gui_data.selected_probe)], ...
     'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
 
-yyaxis(gui_data.handles.axes_probe_areas,'right');
+yyaxis(gui_data.handles.axes_probe_areas,'left');
 set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas); 
 set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers, ...
     'YTickLabels',probe_area_labels, ...
@@ -763,7 +770,7 @@ update_slice(probe_atlas_gui);
 
 end
 
-%% Button functions
+%% Control functions
 
 function view_coronal(h,eventdata,probe_atlas_gui)
 % Set coronal view
@@ -796,7 +803,7 @@ msgbox({'\fontsize{16}\bfProbe controls: ', ...
     'Probe insertion depth: Alt + Arrow keys', ...
     'Probe tip (changes angle): Shift + Arrow keys', ...
     'Select probe (if >1): Click probe, selected is \color{blue}blue'}, ...
-    'Keyboard controls',CreateMode);
+    'Keyboard controls','help',CreateMode);
 
 end
 
@@ -1035,6 +1042,41 @@ end
 guidata(probe_atlas_gui,gui_data);
 end
 
+function set_name_acronym(h,eventdata,probe_atlas_gui)
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Set name convention and check menu
+h.Checked = 'on';
+gui_data.display_region_name = 'acronym';
+
+% Uncheck other options (mutually exclusive menu)
+alt_menu_options = get(h.Parent,'Children');
+set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
+
+% Update gui_data and area names
+guidata(probe_atlas_gui, gui_data);
+update_probe_coordinates(probe_atlas_gui);
+end
+
+function set_name_full(h,eventdata,probe_atlas_gui)
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Set name convention and check menu
+h.Checked = 'on';
+gui_data.display_region_name = 'safe_name';
+
+% Uncheck other options (mutually exclusive menu)
+alt_menu_options = get(h.Parent,'Children');
+set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
+
+% Update gui_data and area names
+guidata(probe_atlas_gui, gui_data);
+update_probe_coordinates(probe_atlas_gui);
+end
+
+
 function visibility_av_slice(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1180,7 +1222,13 @@ function manipulator_newscale(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-if eventdata.Source.Value
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
+
+switch new_check
+
+    case 'on'
 
     % Initialize MPM client
     % (if MPM client not in path, find it and add to the path)
@@ -1254,17 +1302,12 @@ if eventdata.Source.Value
         [mpm_probe_info.Lambda_X,mpm_probe_info.Lambda_Y,mpm_probe_info.Lambda_Z]);
     update_brain_scale(probe_atlas_gui,mpm_bregma_lambda_distance);
 
-    % Turn button green 
-    h.BackgroundColor = [0.39,0.83,0.07];
-else
+    case 'off'
     try
         stop(gui_data.mpm_timer_fcn)
     catch
     end
     delete(gui_data.mpm_timer_fcn)
-
-    % Turn button back to normal
-    h.BackgroundColor = [0.94,0.94,0.94];
 
     % Update gui data
     guidata(probe_atlas_gui, gui_data);
