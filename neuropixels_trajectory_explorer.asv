@@ -208,10 +208,16 @@ view_button_h(end+1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','
 align(view_button_h,'fixed',0.1,'middle');
 
 % Manipulator zero DV at brain surface
+% (add to gui_data to turn on/off)
 button_position = [0.75,0,0.15,0.05];
-uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+zero_dv_button = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Probe at brain surface >', ...
-    'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+    'Callback',{@set_manipulator_dv_offset,probe_atlas_gui},'visible','off');
+
+gui_data.handles.zero_dv_button = zero_dv_button;
+
+% Upload gui_data
+guidata(probe_atlas_gui, gui_data);
 
 end
 
@@ -1245,16 +1251,20 @@ switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; en
 h.Checked = new_check;
 
 switch new_check
-
     case 'on'
         % Connect to New Scale MPM Pathfinder software
         connect_newscale(probe_atlas_gui)
+        % Turn zero DV button on
+        set(gui_data.handles.zero_dv_button,'visible','on');
     case 'off'
         try
             stop(gui_data.newscale_timer_fcn)
         catch
         end
         delete(gui_data.newscale_timer_fcn)
+
+        % Turn zero DV button on
+        set(gui_data.handles.zero_dv_button,'visible','off');
 
         % Update gui data
         guidata(probe_atlas_gui, gui_data);
@@ -1370,7 +1380,8 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     probe_top = probe_tip + [x; y; z];
 
     % Add DV offset relative to zeroing at brain surface (if applicable)
-    if isfield(gui_data,'manipulator_dv_offset')
+    if isfield(gui_data,'manipulator_dv_offset') && ...
+            length(gui_data.manipulator_dv_offset) >= curr_newscale_probe
         manipulator_dv_offset = [0;0;gui_data.manipulator_dv_offset(curr_newscale_probe)];
     else
         manipulator_dv_offset = zeros(3,1);
@@ -1463,7 +1474,8 @@ manipulator_dv_offset = ...
 
 % Store DV offset for currently selected probe
 % (combine with current offset, if there is one)
-if isfield(gui_data,'manipulator_dv_offset')
+if isfield(gui_data,'manipulator_dv_offset') && ...
+        length(gui_data.manipulator_dv_offset) >= gui_data.selected_probe
     manipulator_dv_offset_total = ...
         manipulator_dv_offset + gui_data.manipulator_dv_offset(gui_data.selected_probe);
 else

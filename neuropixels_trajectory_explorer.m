@@ -7,9 +7,9 @@
 % Instructions for use:
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
-%% GUI setup
 function neuropixels_trajectory_explorer
 
+%% Checks and initialize
 % Check MATLAB version
 matlab_version = version('-date');
 if str2num(matlab_version(end-3:end)) <= 2016
@@ -31,7 +31,7 @@ end
 % Initialize gui_data structure
 gui_data = struct;
 
-% ~~~~ Load atlas and associated data
+%% Load atlas and associated data
 
 % Load in atlas
 % (directory with CCF must be in matlab path to find it)
@@ -79,7 +79,7 @@ ccf_rotation_tform = ...
 ccf_bregma_tform_matrix = ccf_translation_tform*ccf_scale_tform*ccf_rotation_tform;
 ccf_bregma_tform = affine3d(ccf_bregma_tform_matrix);
 
-% ~~~~ Make GUI axes and objects
+%% Make GUI axes and objects
 
 % Set up the gui
 probe_atlas_gui = figure('Toolbar','none','Menubar','none','color','w', ...
@@ -118,51 +118,7 @@ title(axes_probe_areas,'Probe areas');
 colormap(axes_probe_areas,ccf_cmap);
 caxis([1,size(ccf_cmap,1)]);
 
-% Store data
-gui_data.tv = tv; % Intensity atlas
-gui_data.av = av; % Annotated atlas
-gui_data.st = st; % Labels table
-gui_data.avg_bregma_lambda_distance = avg_bregma_lambda_distance; % Average bregma-lambda distance
-gui_data.curr_bregma_lambda_distance = avg_bregma_lambda_distance; % Set current as average
-gui_data.cmap = ccf_cmap; % Atlas colormap
-gui_data.ccf_bregma_tform_ref = ccf_bregma_tform; % Reference CCF-bregma transform
-gui_data.ccf_bregma_tform = ccf_bregma_tform; % CCF-bregma transform to use
-gui_data.structure_plot_idx = []; % Plotted structures
-
-% Store handles
-gui_data.handles.structure_patch = []; % Plotted structures
-gui_data.handles.axes_atlas = axes_atlas; % Axes with 3D atlas
-gui_data.handles.axes_probe_areas = axes_probe_areas; % Axes with probe areas
-gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe regions
-gui_data.handles.slice_plot = surface(axes_atlas,'EdgeColor','none'); % Slice on 3D atlas
-gui_data.handles.slice_volume = 'tv'; % The volume shown in the slice
-gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates text
-
-% Make 3D rotation the default state
-h = rotate3d(axes_atlas);
-h.Enable = 'on';
-h.ButtonDownFilter = @rotate_clickable;
-% Update the slice whenever a rotation is completed
-h.ActionPostCallback = @update_slice;
-
-% Set functions for key presses
-hManager = uigetmodemanager(probe_atlas_gui);
-[hManager.WindowListenerHandles.Enabled] = deal(false);
-set(probe_atlas_gui,'KeyPressFcn',@key_press);
-set(probe_atlas_gui,'KeyReleaseFcn',@key_release);
-
-% Upload gui_data
-guidata(probe_atlas_gui, gui_data);
-
-% Draw brain outline
-draw_brain(probe_atlas_gui);
-
-% Add a probe, draw slice
-probe_add([],[],probe_atlas_gui);
-update_slice(probe_atlas_gui);
-
-
-%% Menu/buttons
+%% Create menu/buttons
 
 probe_controls_menu = uimenu(probe_atlas_gui,'Text','Probe controls');
 uimenu(probe_controls_menu,'Text','Display controls','MenuSelectedFcn',{@popup_controls,probe_atlas_gui});
@@ -208,10 +164,55 @@ view_button_h(end+1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','
 align(view_button_h,'fixed',0.1,'middle');
 
 % Manipulator zero DV at brain surface
+% (add to gui_data to turn on/off)
 button_position = [0.75,0,0.15,0.05];
-uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+zero_dv_button = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
     'Units','normalized','Position',button_position,'String','Probe at brain surface >', ...
-    'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+    'Callback',{@set_manipulator_dv_offset,probe_atlas_gui},'visible','off');
+
+%% Store initial GUI data
+gui_data.tv = tv; % Intensity atlas
+gui_data.av = av; % Annotated atlas
+gui_data.st = st; % Labels table
+gui_data.avg_bregma_lambda_distance = avg_bregma_lambda_distance; % Average bregma-lambda distance
+gui_data.curr_bregma_lambda_distance = avg_bregma_lambda_distance; % Set current as average
+gui_data.cmap = ccf_cmap; % Atlas colormap
+gui_data.ccf_bregma_tform_ref = ccf_bregma_tform; % Reference CCF-bregma transform
+gui_data.ccf_bregma_tform = ccf_bregma_tform; % CCF-bregma transform to use
+gui_data.structure_plot_idx = []; % Plotted structures
+
+% Store handles
+gui_data.handles.structure_patch = []; % Plotted structures
+gui_data.handles.axes_atlas = axes_atlas; % Axes with 3D atlas
+gui_data.handles.axes_probe_areas = axes_probe_areas; % Axes with probe areas
+gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe regions
+gui_data.handles.slice_plot = surface(axes_atlas,'EdgeColor','none'); % Slice on 3D atlas
+gui_data.handles.slice_volume = 'tv'; % The volume shown in the slice
+gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates text
+gui_data.handles.zero_dv_button = zero_dv_button;
+
+% Make 3D rotation the default state
+h = rotate3d(axes_atlas);
+h.Enable = 'on';
+h.ButtonDownFilter = @rotate_clickable;
+% Update the slice whenever a rotation is completed
+h.ActionPostCallback = @update_slice;
+
+% Set functions for key presses
+hManager = uigetmodemanager(probe_atlas_gui);
+[hManager.WindowListenerHandles.Enabled] = deal(false);
+set(probe_atlas_gui,'KeyPressFcn',@key_press);
+set(probe_atlas_gui,'KeyReleaseFcn',@key_release);
+
+% Upload gui_data
+guidata(probe_atlas_gui, gui_data);
+
+% Draw brain outline
+draw_brain(probe_atlas_gui);
+
+% Add a probe, draw slice
+probe_add([],[],probe_atlas_gui);
+update_slice(probe_atlas_gui);
 
 end
 
@@ -1245,16 +1246,20 @@ switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; en
 h.Checked = new_check;
 
 switch new_check
-
     case 'on'
         % Connect to New Scale MPM Pathfinder software
         connect_newscale(probe_atlas_gui)
+        % Turn zero DV button on
+        set(gui_data.handles.zero_dv_button,'visible','on');
     case 'off'
         try
             stop(gui_data.newscale_timer_fcn)
         catch
         end
         delete(gui_data.newscale_timer_fcn)
+
+        % Turn zero DV button off
+        set(gui_data.handles.zero_dv_button,'visible','off');
 
         % Update gui data
         guidata(probe_atlas_gui, gui_data);
@@ -1429,6 +1434,10 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     update_probe_coordinates(probe_atlas_gui);
 
 end
+
+% Select MPM-selected probe (0-indexed)
+newscale_selected_probe = gui_data.newscale_client.AppData.SelectedProbe+1;
+select_probe(gui_data.handles.probe_line(newscale_selected_probe),[],probe_atlas_gui)
 
 % Update slice
 update_slice(probe_atlas_gui);
