@@ -1370,8 +1370,7 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     probe_top = probe_tip + [x; y; z];
 
     % Add DV offset relative to zeroing at brain surface (if applicable)
-    if isfield(gui_data,'manipulator_dv_offset') && ...
-            length(gui_data.manipulator_dv_offset) >= curr_newscale_probe
+    if isfield(gui_data,'manipulator_dv_offset')
         manipulator_dv_offset = [0;0;gui_data.manipulator_dv_offset(curr_newscale_probe)];
     else
         manipulator_dv_offset = zeros(3,1);
@@ -1464,8 +1463,7 @@ manipulator_dv_offset = ...
 
 % Store DV offset for currently selected probe
 % (combine with current offset, if there is one)
-if isfield(gui_data,'manipulator_dv_offset') && ...
-        length(gui_data.manipulator_dv_offset) >= gui_data.selected_probe
+if isfield(gui_data,'manipulator_dv_offset')
     manipulator_dv_offset_total = ...
         manipulator_dv_offset + gui_data.manipulator_dv_offset(gui_data.selected_probe);
 else
