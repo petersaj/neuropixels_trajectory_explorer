@@ -4,7 +4,7 @@
 %
 % GUI for planning Neuropixels trajectories with the Allen CCF atlas
 %
-% Instructions for use: 
+% Instructions for use:
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
 %% GUI setup
@@ -19,7 +19,7 @@ end
 % Check for dependencies
 % (npy-matlab to load in atlas)
 if ~exist('readNPY','file')
-   error('"npy-matlab" code not found, download here and add to matlab path: https://github.com/kwikteam/npy-matlab') 
+    error('"npy-matlab" code not found, download here and add to matlab path: https://github.com/kwikteam/npy-matlab')
 end
 if ~license('test','Statistics_Toolbox')
     error('MATLAB statistics toolbox required (https://uk.mathworks.com/products/statistics.html)')
@@ -55,6 +55,9 @@ ccf_cmap_c3 = cellfun(@(x)hex2dec(x(5:6)), ccf_color_hex, 'uni', false);
 ccf_cmap = horzcat(vertcat(ccf_cmap_c1{:}),vertcat(ccf_cmap_c2{:}),vertcat(ccf_cmap_c3{:}))./255;
 
 % ~~~~ Make transform matrix from CCF to bregma/mm coordinates
+
+% Set average stereotaxic bregma-lambda distance, set initial scale to 1
+avg_bregma_lambda_distance = 4.1; % Currently approximation
 
 % (translation values from our bregma estimate: AP/ML from Paxinos, DV from
 % rough MRI estimate)
@@ -119,6 +122,8 @@ caxis([1,size(ccf_cmap,1)]);
 gui_data.tv = tv; % Intensity atlas
 gui_data.av = av; % Annotated atlas
 gui_data.st = st; % Labels table
+gui_data.avg_bregma_lambda_distance = avg_bregma_lambda_distance; % Average bregma-lambda distance
+gui_data.curr_bregma_lambda_distance = avg_bregma_lambda_distance; % Set current as average
 gui_data.cmap = ccf_cmap; % Atlas colormap
 gui_data.ccf_bregma_tform_ref = ccf_bregma_tform; % Reference CCF-bregma transform
 gui_data.ccf_bregma_tform = ccf_bregma_tform; % CCF-bregma transform to use
@@ -157,8 +162,8 @@ probe_add([],[],probe_atlas_gui);
 update_slice(probe_atlas_gui);
 
 
-%% Buttons
-drawnow
+%% Menu/buttons
+
 probe_controls_menu = uimenu(probe_atlas_gui,'Text','Probe controls');
 uimenu(probe_controls_menu,'Text','Display controls','MenuSelectedFcn',{@popup_controls,probe_atlas_gui});
 uimenu(probe_controls_menu,'Text','Set entry','MenuSelectedFcn',{@set_probe_entry,probe_atlas_gui});
@@ -174,11 +179,11 @@ uimenu(mesh_areas_menu,'Text','Remove areas','MenuSelectedFcn',{@remove_area,pro
 
 display_menu = uimenu(probe_atlas_gui,'Text','Display');
 name_menu = uimenu(display_menu,'Text','Region names');
-    uimenu(name_menu,'Text','Acronym','MenuSelectedFcn',{@set_name_acronym,probe_atlas_gui},'Checked','on')
-    uimenu(name_menu,'Text','Full','MenuSelectedFcn',{@set_name_full,probe_atlas_gui})
+uimenu(name_menu,'Text','Acronym','MenuSelectedFcn',{@set_name_acronym,probe_atlas_gui},'Checked','on')
+uimenu(name_menu,'Text','Full','MenuSelectedFcn',{@set_name_full,probe_atlas_gui})
 slice_menu = uimenu(display_menu,'Text','Slice');
-    uimenu(slice_menu,'Text','Anatomical','MenuSelectedFcn',{@visibility_tv_slice,probe_atlas_gui},'Checked','on')
-    uimenu(slice_menu,'Text','Annotated','MenuSelectedFcn',{@visibility_av_slice,probe_atlas_gui})
+uimenu(slice_menu,'Text','Anatomical','MenuSelectedFcn',{@visibility_tv_slice,probe_atlas_gui},'Checked','on')
+uimenu(slice_menu,'Text','Annotated','MenuSelectedFcn',{@visibility_av_slice,probe_atlas_gui})
 uimenu(display_menu,'Text','Brain outline','MenuSelectedFcn',{@visibility_brain_outline,probe_atlas_gui},'Checked','on');
 uimenu(display_menu,'Text','Grid','MenuSelectedFcn',{@visibility_grid,probe_atlas_gui});
 uimenu(display_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atlas_gui},'Checked','on');
@@ -189,16 +194,24 @@ manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
 uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
 uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@manipulator_scientifica,probe_atlas_gui});
 
-%%% View angle buttons
+%%% Buttons
 button_fontsize = 12;
-view_button_position = [0,0,0.1,0.05];
+
+% View angle buttons
+button_position = [0,0,0.1,0.05];
 view_button_h(1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',view_button_position,'String','Coronal','Callback',{@view_coronal,probe_atlas_gui});
+    'Units','normalized','Position',button_position,'String','Coronal','Callback',{@view_coronal,probe_atlas_gui});
 view_button_h(end+1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',view_button_position,'String','Sagittal','Callback',{@view_sagittal,probe_atlas_gui});
+    'Units','normalized','Position',button_position,'String','Sagittal','Callback',{@view_sagittal,probe_atlas_gui});
 view_button_h(end+1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',view_button_position,'String','Horizontal','Callback',{@view_horizontal,probe_atlas_gui});
+    'Units','normalized','Position',button_position,'String','Horizontal','Callback',{@view_horizontal,probe_atlas_gui});
 align(view_button_h,'fixed',0.1,'middle');
+
+% Manipulator zero DV at brain surface
+button_position = [0.75,0,0.15,0.05];
+uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+    'Units','normalized','Position',button_position,'String','Probe at brain surface >', ...
+    'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
 
 end
 
@@ -292,7 +305,7 @@ gui_data = guidata(probe_atlas_gui);
 
 switch eventdata.Key
     case {'rightarrow','leftarrow','uparrow','downarrow'}
-        % Update the probe info/slice on arrow release 
+        % Update the probe info/slice on arrow release
         update_probe_coordinates(probe_atlas_gui);
         update_slice(probe_atlas_gui);
 end
@@ -310,10 +323,10 @@ gui_data = guidata(probe_atlas_gui);
 
 % Only update the slice if it's visible
 if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
-    
+
     % Get current position of camera
     curr_campos = campos(gui_data.handles.axes_atlas);
-    
+
     % Get probe vector
     probe_ref_top = [gui_data.handles.probe_ref_line(gui_data.selected_probe).XData(1), ...
         gui_data.handles.probe_ref_line(gui_data.selected_probe).YData(1), ...
@@ -322,19 +335,19 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
         gui_data.handles.probe_ref_line(gui_data.selected_probe).YData(2), ...
         gui_data.handles.probe_ref_line(gui_data.selected_probe).ZData(2)];
     probe_vector = probe_ref_top - probe_ref_bottom;
-    
+
     % Get probe-camera vector
     probe_camera_vector = probe_ref_top - curr_campos;
-    
+
     % Get the vector to plot the plane in (along with probe vector)
     plot_vector = cross(probe_camera_vector,probe_vector);
-    
+
     % Get the normal vector of the plane
     normal_vector = cross(plot_vector,probe_vector);
-    
+
     % Get the plane offset through the probe
     plane_offset = -(normal_vector*probe_ref_top');
-    
+
     % Define a plane of points to index
     % (the plane grid is defined based on the which cardinal plan is most
     % orthogonal to the plotted plane. this is janky but it works)
@@ -359,15 +372,15 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
                 dv_lim(1):slice_px_space:dv_lim(2));
             plane_ap_bregma = ...
                 (normal_vector(3)*plane_dv_bregma+normal_vector(1)*plane_ml_bregma + plane_offset)/ ...
-                -normal_vector(2);    
-            
+                -normal_vector(2);
+
         case 3
             [plane_ml_bregma,plane_ap_bregma] = ndgrid(...
                 ml_lim(1):slice_px_space:ml_lim(2),...
                 ap_lim(1):slice_px_space:ap_lim(2));
             plane_dv_bregma = ...
                 (normal_vector(2)*plane_ap_bregma+normal_vector(1)*plane_ml_bregma + plane_offset)/ ...
-                -normal_vector(3);       
+                -normal_vector(3);
     end
 
     % Transform bregma coordinates to CCF coordinates
@@ -393,16 +406,16 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
 
             colormap(gui_data.handles.axes_atlas,'gray');
             caxis(gui_data.handles.axes_atlas,[0,255]);
-            
+
         case 'av'
             curr_slice = nan(size(plane_ap_ccf));
             curr_slice(plane_coords_inbounds) = gui_data.av(plane_idx);
             curr_slice(curr_slice <= 1) = NaN; % threshold values
-        
+
             colormap(gui_data.handles.axes_atlas,gui_data.cmap);
             caxis(gui_data.handles.axes_atlas,[1,size(gui_data.cmap,1)]);
     end
-   
+
     % Update the slice display
     set(gui_data.handles.slice_plot, ...
         'XData',plane_ml_bregma,'YData',plane_ap_bregma,'ZData',plane_dv_bregma,'CData',curr_slice);
@@ -410,7 +423,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
 
     % Upload gui_data
     guidata(probe_atlas_gui, gui_data);
-    
+
 end
 
 end
@@ -430,7 +443,7 @@ prompt_text = { ...
 
 new_probe_position_input = inputdlg(prompt_text,'Set probe position',1);
 if any(cellfun(@isempty,new_probe_position_input))
-   error('Not all coordinates entered'); 
+    error('Not all coordinates entered');
 end
 new_probe_position = cellfun(@str2num,new_probe_position_input);
 
@@ -442,10 +455,10 @@ ml_lim = xlim(gui_data.handles.axes_atlas);
 ap_lim = ylim(gui_data.handles.axes_atlas);
 dv_lim = zlim(gui_data.handles.axes_atlas);
 max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
- [x,y,z] = sph2cart( ...
-        deg2rad(90-probe_angle(1)),  ...
-        deg2rad(180+probe_angle(2)), ...
-        -max_ref_length);
+[x,y,z] = sph2cart( ...
+    deg2rad(90-probe_angle(1)),  ...
+    deg2rad(180+probe_angle(2)), ...
+    -max_ref_length);
 
 % Get top of probe reference with user brain intersection point
 % (get DV location of brain surface at chosen ML/AP point)
@@ -509,7 +522,7 @@ prompt_text = { ...
 
 new_probe_position_input = inputdlg(prompt_text,'Set probe position',1);
 if any(cellfun(@isempty,new_probe_position_input))
-   error('Not all coordinates entered'); 
+    error('Not all coordinates entered');
 end
 new_probe_position = cellfun(@str2num,new_probe_position_input);
 
@@ -568,14 +581,14 @@ probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe)
 % % Set new angle
 % new_angle = gui_data.probe_angle + angle_change;
 % gui_data.probe_angle = new_angle;
-% 
+%
 % [ap_max,dv_max,ml_max] = size(gui_data.tv);
-% 
+%
 % max_ref_length = sqrt(sum(([ap_max,dv_max,ml_max].^2)));
-% 
+%
 % probe_angle_rad = (gui_data.probe_angle./360)*2*pi;
 % [x,y,z] = sph2cart(pi-probe_angle_rad(1),probe_angle_rad(2),max_ref_length);
-% 
+%
 % new_probe_ref_top = [probe_ref_vector(1,1),probe_ref_vector(2,1),0];
 % new_probe_ref_bottom = new_probe_ref_top + [x,y,z];
 % new_probe_ref_vector = [new_probe_ref_top;new_probe_ref_bottom]';
@@ -584,9 +597,9 @@ probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe)
 new_probe_ref_vector = [probe_ref_vector(:,1), ...
     probe_ref_vector(:,2) + [angle_change;0]];
 
-% Calculate angle and rotate to convention: 
+% Calculate angle and rotate to convention:
 % azimuth: 0-360 (clockwise from back)
-% elevation: 0-90 (horizontal to vertical) 
+% elevation: 0-90 (horizontal to vertical)
 [probe_azimuth_sph,probe_elevation_sph] = cart2sph( ...
     diff(new_probe_ref_vector(2,:)), ...
     diff(new_probe_ref_vector(1,:)), ...
@@ -731,7 +744,7 @@ set(gui_data.handles.axes_probe_areas, ...
     'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
 
 yyaxis(gui_data.handles.axes_probe_areas,'left');
-set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas); 
+set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas);
 set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers, ...
     'YTickLabels',probe_area_labels, ...
     'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
@@ -748,17 +761,20 @@ function update_brain_scale(probe_atlas_gui,bregma_lambda_distance)
 gui_data = guidata(probe_atlas_gui);
 
 % Get the sizing scale of this mouse to the reference atlas
-bregma_lambda_distance_standard = 4.1; % currently an approximation
-mouse_scale = bregma_lambda_distance/bregma_lambda_distance_standard;
+mouse_scale = bregma_lambda_distance/ ...
+    gui_data.avg_bregma_lambda_distance;
 
 % Apply scale to reference transform and set to new transform
 mouse_scale_tform = eye(4).*[repmat(mouse_scale,3,1);1];
 gui_data.ccf_bregma_tform.T = gui_data.ccf_bregma_tform_ref.T*mouse_scale_tform;
 
+% Update current bregma-lambda distance
+gui_data.curr_bregma_lambda_distance = bregma_lambda_distance;
+
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
 
-% Redraw to new scale: 
+% Redraw to new scale:
 % - Brain outline
 draw_brain(probe_atlas_gui);
 % - 3D areas
@@ -884,7 +900,7 @@ delete(gui_data.handles.probe_line(gui_data.selected_probe));
 gui_data.handles.probe_ref_line(gui_data.selected_probe) = [];
 gui_data.handles.probe_line(gui_data.selected_probe) = [];
 gui_data.probe_length(gui_data.selected_probe) = [];
-gui_data.probe_angle(gui_data.selected_probe) = []; 
+gui_data.probe_angle(gui_data.selected_probe) = [];
 
 % Update guidata
 guidata(probe_atlas_gui,gui_data);
@@ -975,7 +991,7 @@ function draw_areas(probe_atlas_gui,plot_structure)
 gui_data = guidata(probe_atlas_gui);
 
 if ~isempty(plot_structure)
-    
+
     curr_structure_plot_idx = min([ ...
         find(gui_data.structure_plot_idx == plot_structure), ...
         length(gui_data.structure_plot_idx)+1]);
@@ -991,10 +1007,10 @@ if ~isempty(plot_structure)
     plot_structure_id = gui_data.st.structure_id_path{plot_structure};
     plot_ccf_idx = find(cellfun(@(x) contains(x,plot_structure_id), ...
         gui_data.st.structure_id_path));
-    
+
     % Plot the structure
     atlas_downsample = 5; % (downsample atlas to make this faster)
-    
+
     [ap_grid_ccf,dv_grid_ccf,ml_grid_ccf] = ...
         ndgrid(1:atlas_downsample:size(gui_data.av,1), ...
         1:atlas_downsample:size(gui_data.av,2), ...
@@ -1007,7 +1023,7 @@ if ~isempty(plot_structure)
     structure_3d = isosurface(ml_grid_bregma,ap_grid_bregma,dv_grid_bregma, ...
         ismember(gui_data.av(1:atlas_downsample:end, ...
         1:atlas_downsample:end,1:atlas_downsample:end),plot_ccf_idx),0);
-    
+
     structure_alpha = 0.2;
     plot_structure_color = hex2dec(reshape(gui_data.st.color_hex_triplet{plot_structure},2,[])')./255;
 
@@ -1016,7 +1032,7 @@ if ~isempty(plot_structure)
         'Vertices',structure_3d.vertices, ...
         'Faces',structure_3d.faces, ...
         'FaceColor',plot_structure_color,'EdgeColor','none','FaceAlpha',structure_alpha);
-    
+
 end
 
 % Upload gui_data
@@ -1209,6 +1225,8 @@ set(gui_data.handles.axes_probe_areas,'ycolor',new_font_color)
 yyaxis(gui_data.handles.axes_probe_areas,'right');
 set(gui_data.handles.axes_probe_areas,'ycolor',new_font_color)
 set(gui_data.handles.axes_probe_areas.Title,'color',new_font_color)
+set(gui_data.probe_coordinates_text,'BackgroundColor',new_bg_color)
+set(gui_data.probe_coordinates_text,'ForegroundColor',new_font_color)
 
 % Set menu item check
 h.Checked = new_visibility;
@@ -1229,127 +1247,146 @@ h.Checked = new_check;
 switch new_check
 
     case 'on'
-
-    % Initialize MPM client
-    % (if MPM client not in path, find it and add to the path)
-    mpm_client_file = 'NstMpmClientAccess.dll';
-    if ~exist(mpm_client_file,'file')
-        [~,mpm_client_path] = uigetfile(mpm_client_file,sprintf('Choose MPM client file (%s)',mpm_client_file));
-        mpm_client_filename = fullfile(mpm_client_path,mpm_client_file);
-        
-        if ~exist(mpm_client_filename,'file')
-            % error out if file doesn't exist
-            error('Please supply MPM client file (%s) - ',mpm_client_file)     
-        else
-            % if file exists, add folder to path and save
-            addpath(mpm_client_path)
-            savepath
-        end        
-    end
-
-    mpm_client_filename = which(mpm_client_file);
-    NET.addAssembly(mpm_client_filename);
-    import NstMpmClientAccess.*
-    mpm_client = NstMpmClientAccess.NstMpmClient;
-
-    % Get IP and port configuration (default is same computer, port 8080)
-    mpm_client_settings = inputdlg({'MPM IP address (Computer running VCS):', ...
-        'MPM Port (Coordinate Sys > ... > Http server) :'},'MPM',1,{'localhost','8080'});
-    mpm_client.IP_Address = mpm_client_settings{1};
-    mpm_client.Port = str2num(mpm_client_settings{2});
-
-    % Initial MPM query
-    mpm_client.QueryMpmApplication;
-
-    % (if there was a query problem, error out)
-    if any(mpm_client.LastError ~= '')
-        error('Error querying MPM: %s',mpm_client.LastError);
-    end
-
-    % Get number of probes connected in the MPM
-    mpm_n_probes = mpm_client.AppData.Probes;
-
-    % Set number of probes equal to MPM-connected probe number
-    user_n_probes = length(gui_data.handles.probe_line);
-    if user_n_probes > mpm_n_probes
-        for i = 1:(user_n_probes - mpm_n_probes)
-            probe_remove([],[],probe_atlas_gui);
-            gui_data = guidata(probe_atlas_gui);
-        end
-    elseif user_n_probes < mpm_n_probes
-        for i = 1:(mpm_n_probes - user_n_probes)
-            probe_add([],[],probe_atlas_gui);
-            gui_data = guidata(probe_atlas_gui);
-        end
-    end
-
-    % Save mpm_client in guidata
-    gui_data.mpm_client = mpm_client;
-    guidata(probe_atlas_gui, gui_data);
-
-    % Set up timer function for updating probe position
-    mpm_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
-    gui_data.mpm_timer_fcn = timer('TimerFcn', @(~,~)get_mpm_position(probe_atlas_gui), 'Period', 1/mpm_query_rate, 'ExecutionMode','fixedDelay', 'TasksToExecute', inf);
-    % store timer function and start 
-    % (necessary for the standalone, which deletes function on 'start')
-    guidata(probe_atlas_gui,gui_data);
-    start(gui_data.mpm_timer_fcn)
-
-    % Get bregma-lambda distance (from Probe A), re-scale atlas
-    mpm_probe_info = mpm_client.AppData.GetProbe(0);
-    mpm_bregma_lambda_distance = ...
-        norm([mpm_probe_info.Bregma_X,mpm_probe_info.Bregma_Y,mpm_probe_info.Bregma_Z]- ...
-        [mpm_probe_info.Lambda_X,mpm_probe_info.Lambda_Y,mpm_probe_info.Lambda_Z]);
-    update_brain_scale(probe_atlas_gui,mpm_bregma_lambda_distance);
-
+        % Connect to New Scale MPM Pathfinder software
+        connect_newscale(probe_atlas_gui)
     case 'off'
-    try
-        stop(gui_data.mpm_timer_fcn)
-    catch
+        try
+            stop(gui_data.newscale_timer_fcn)
+        catch
+        end
+        delete(gui_data.newscale_timer_fcn)
+
+        % Update gui data
+        guidata(probe_atlas_gui, gui_data);
+end
+
+end
+
+
+%% Manipulator interfacing
+
+function connect_newscale(probe_atlas_gui)
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Initialize MPM client
+% (if MPM client not in path, find it and add to the path)
+newscale_client_file = 'NstMpmClientAccess.dll';
+if ~exist(newscale_client_file,'file')
+    [~,newscale_client_path] = uigetfile(newscale_client_file,sprintf('Choose MPM client file (%s)',newscale_client_file));
+    newscale_client_filename = fullfile(newscale_client_path,newscale_client_file);
+
+    if ~exist(newscale_client_filename,'file')
+        % error out if file doesn't exist
+        error('Please supply MPM client file (%s) - ',newscale_client_file)
+    else
+        % if file exists, add folder to path and save
+        addpath(newscale_client_path)
+        savepath
     end
-    delete(gui_data.mpm_timer_fcn)
-
-    % Update gui data
-    guidata(probe_atlas_gui, gui_data);
 end
 
+newscale_client_filename = which(newscale_client_file);
+NET.addAssembly(newscale_client_filename);
+import NstMpmClientAccess.*
+newscale_client = NstMpmClientAccess.NstMpmClient;
+
+% Get IP and port configuration (default is same computer, port 8080)
+newscale_client_settings = inputdlg({'MPM IP address (Computer running VCS):', ...
+    'MPM Port (Coordinate Sys > ... > Http server) :'},'MPM',1,{'localhost','8080'});
+newscale_client.IP_Address = newscale_client_settings{1};
+newscale_client.Port = str2num(newscale_client_settings{2});
+
+% Initial MPM query
+newscale_client.QueryMpmApplication;
+
+% (if there was a query problem, error out)
+if any(newscale_client.LastError ~= '')
+    error('Error querying MPM: %s',newscale_client.LastError);
 end
 
-function get_mpm_position(probe_atlas_gui)
+% Get number of probes connected in the MPM
+newscale_n_probes = newscale_client.AppData.Probes;
+
+% Set number of probes equal to MPM-connected probe number
+user_n_probes = length(gui_data.handles.probe_line);
+if user_n_probes > newscale_n_probes
+    for i = 1:(user_n_probes - newscale_n_probes)
+        probe_remove([],[],probe_atlas_gui);
+        gui_data = guidata(probe_atlas_gui);
+    end
+elseif user_n_probes < newscale_n_probes
+    for i = 1:(newscale_n_probes - user_n_probes)
+        probe_add([],[],probe_atlas_gui);
+        gui_data = guidata(probe_atlas_gui);
+    end
+end
+
+% Save newscale_client in guidata
+gui_data.newscale_client = newscale_client;
+guidata(probe_atlas_gui, gui_data);
+
+% Set up timer function for updating probe position
+newscale_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+gui_data.newscale_timer_fcn = timer('TimerFcn', @(~,~)get_newscale_position(probe_atlas_gui), 'Period', 1/newscale_query_rate, 'ExecutionMode','fixedDelay', 'TasksToExecute', inf);
+% store timer function and start
+% (necessary for the standalone, which deletes function on 'start')
+guidata(probe_atlas_gui,gui_data);
+start(gui_data.newscale_timer_fcn)
+
+% Get bregma-lambda distance (from Probe A), re-scale atlas
+newscale_probe_info = newscale_client.AppData.GetProbe(0);
+newscale_bregma_lambda_distance = ...
+    norm([newscale_probe_info.Bregma_X,newscale_probe_info.Bregma_Y,newscale_probe_info.Bregma_Z]- ...
+    [newscale_probe_info.Lambda_X,newscale_probe_info.Lambda_Y,newscale_probe_info.Lambda_Z]);
+update_brain_scale(probe_atlas_gui,newscale_bregma_lambda_distance);
+
+end
+
+function get_newscale_position(probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
 % Query MPM app for probe information
-gui_data.mpm_client.QueryMpmApplication;
+gui_data.newscale_client.QueryMpmApplication;
 
 % Loop through all MPM probes, update data
-for curr_mpm_probe = 1:gui_data.mpm_client.AppData.Probes
+for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
 
     % Get given MPM probe data (0-indexed)
-    mpm_probe_info = gui_data.mpm_client.AppData.GetProbe(curr_mpm_probe-1);
+    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(curr_newscale_probe-1);
 
     % Get tip position of probe (MPM convention: -Z is down)
-    probe_tip = [mpm_probe_info.Tip_X_ML; mpm_probe_info.Tip_Y_AP; -mpm_probe_info.Tip_Z_DV];
+    probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
 
     % Calculate top position of the probe (back up from bottom by angles)
     % (MPM convention: Polar: same, Pitch: 0 is vertical)
     % (using length of recording sites, not full length of the probe from VCS)
-    mpm2nte_angles = [mpm_probe_info.Polar, 90-mpm_probe_info.Pitch];
+    mpm2nte_angles = [newscale_probe_info.Polar, 90-newscale_probe_info.Pitch];
 
     [x,y,z] = sph2cart( ...
         deg2rad(90-mpm2nte_angles(1)),  ...
         deg2rad(180+mpm2nte_angles(2)), ...
-        gui_data.probe_length(curr_mpm_probe));
+        gui_data.probe_length(curr_newscale_probe));
     probe_top = probe_tip + [x; y; z];
 
-    probe_vector = [probe_top, probe_tip];
+    % Add DV offset relative to zeroing at brain surface (if applicable)
+    if isfield(gui_data,'manipulator_dv_offset')
+        manipulator_dv_offset = gui_data.manipulator_dv_offset(gui_data.selected_probe);
+    else
+        manipulator_dv_offset = 0;
+    end
+
+    % Set probe vector
+    probe_vector = [probe_top, probe_tip] + [0;0;manipulator_dv_offset];
 
     % Update angles
-    gui_data.probe_angle{curr_mpm_probe} = mpm2nte_angles;
+    gui_data.probe_angle{curr_newscale_probe} = mpm2nte_angles;
 
     % Change probe location
-    set(gui_data.handles.probe_line(curr_mpm_probe), ...
+    set(gui_data.handles.probe_line(curr_newscale_probe), ...
         'XData',probe_vector(1,:), ...
         'YData',probe_vector(2,:), ...
         'ZData',probe_vector(3,:));
@@ -1372,7 +1409,7 @@ for curr_mpm_probe = 1:gui_data.mpm_client.AppData.Probes
     probe_ref_bottom = probe_ref_top + [x,y,z];
     probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
 
-    set(gui_data.handles.probe_ref_line(curr_mpm_probe), ...
+    set(gui_data.handles.probe_ref_line(curr_newscale_probe), ...
         'XData',probe_ref_vector(1,:), ...
         'YData',probe_ref_vector(2,:), ...
         'ZData',probe_ref_vector(3,:));
@@ -1380,18 +1417,59 @@ for curr_mpm_probe = 1:gui_data.mpm_client.AppData.Probes
     % Update gui data
     guidata(probe_atlas_gui, gui_data);
 
+    % Get bregma-lambda distance (from Probe A), re-scale atlas if changed
+    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(0);
+    newscale_bregma_lambda_distance = ...
+        norm([newscale_probe_info.Bregma_X,newscale_probe_info.Bregma_Y,newscale_probe_info.Bregma_Z]- ...
+        [newscale_probe_info.Lambda_X,newscale_probe_info.Lambda_Y,newscale_probe_info.Lambda_Z]);
+    if newscale_bregma_lambda_distance ~= gui_data.curr_bregma_lambda_distance
+        update_brain_scale(probe_atlas_gui,newscale_bregma_lambda_distance);
+    end
+
     % Update the slice and probe coordinates
     update_probe_coordinates(probe_atlas_gui);
 end
 
 % Select MPM-selected probe (0-indexed)
-mpm_selected_probe = gui_data.mpm_client.AppData.SelectedProbe+1;
-select_probe(gui_data.handles.probe_line(mpm_selected_probe),[],probe_atlas_gui)
+newscale_selected_probe = gui_data.newscale_client.AppData.SelectedProbe+1;
+select_probe(gui_data.handles.probe_line(newscale_selected_probe),[],probe_atlas_gui)
 
 % Update slice
 update_slice(probe_atlas_gui);
 
 end
+
+function set_manipulator_dv_offset(h,eventdata,probe_atlas_gui)
+% Set probe tip DV at brain surface, apply DV offset
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Get probe position
+probe_position = ...
+    [gui_data.handles.probe_line(gui_data.selected_probe).XData; ...
+    gui_data.handles.probe_line(gui_data.selected_probe).YData; ...
+    gui_data.handles.probe_line(gui_data.selected_probe).ZData];
+
+% Get brain surface at ML/AP position 
+% (use brain outline mesh: find closest surface coordinate)
+brain_outline_median_dv = median(gui_data.handles.brain_outline.Vertices(:,3));
+use_vertices = find(gui_data.handles.brain_outline.Vertices(:,3) <= brain_outline_median_dv);
+
+[~,mesh_coord_idx] = min(pdist2(probe_position(1:2,2)', ...
+    gui_data.handles.brain_outline.Vertices(use_vertices,1:2)));
+manipulator_dv_offset = ...
+    gui_data.handles.brain_outline.Vertices(use_vertices(mesh_coord_idx),3) - probe_position(3,2);
+
+% Store DV offset for currently selected probe
+gui_data.manipulator_dv_offset(gui_data.selected_probe) = manipulator_dv_offset;
+
+% Update gui data
+guidata(probe_atlas_gui, gui_data);
+
+end
+
+
 
 %% General functions
 
@@ -1430,6 +1508,11 @@ brain_outline = patch( ...
     'PickableParts','none'); % make unclickable, since probes are inside and clickable
 
 gui_data.handles.brain_outline = brain_outline;
+
+% Set the axes bounds to contain the whole brain
+xlim(gui_data.handles.axes_atlas,[min(ml_grid_bregma(:)),max(ml_grid_bregma(:))]);
+ylim(gui_data.handles.axes_atlas,[min(ap_grid_bregma(:)),max(ap_grid_bregma(:))]);
+zlim(gui_data.handles.axes_atlas,[min(dv_grid_bregma(:)),max(dv_grid_bregma(:))]);
 
 % Update gui data
 guidata(probe_atlas_gui, gui_data);
@@ -1489,9 +1572,9 @@ end
 
 [~, fnBase] = fileparts(fn);
 if ~isempty(strfind(fnBase, '2017'))
-    mode = '2017'; 
+    mode = '2017';
 else
-    mode = 'old'; 
+    mode = 'old';
 end
 
 fid = fopen(fn, 'r');
@@ -1500,22 +1583,22 @@ if strcmp(mode, 'old')
     titles = textscan(fid, '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s', 1, 'delimiter', ',');
     titles = cellfun(@(x)x{1}, titles, 'uni', false);
     titles{1} = 'index'; % this is blank in the file
-    
+
     data = textscan(fid, '%d%s%d%s%d%s%d%d%d%d%d%s%s%d%d%s%d%s%s%d%d', 'delimiter', ',');
-    
+
 elseif strcmp(mode, '2017')
     titles = textscan(fid, repmat('%s', 1, 21), 1, 'delimiter', ',');
     titles = cellfun(@(x)x{1}, titles, 'uni', false);
-    
+
     data = textscan(fid, ['%d%d%s%s'... % 'id'    'atlas_id'    'name'    'acronym'
-                          '%s%d%d%d'... % 'st_level'    'ontology_id'    'hemisphere_id'    'weight'
-                          '%d%d%d%d'... % 'parent_structure_id'    'depth'    'graph_id'     'graph_order'
-                          '%s%s%d%s'... % 'structure_id_path'    'color_hex_triplet' neuro_name_structure_id neuro_name_structure_id_path
-                          '%s%d%d%d'... % 'failed'    'sphinx_id' structure_name_facet failed_facet
-                          '%s'], 'delimiter', ','); % safe_name
-    
+        '%s%d%d%d'... % 'st_level'    'ontology_id'    'hemisphere_id'    'weight'
+        '%d%d%d%d'... % 'parent_structure_id'    'depth'    'graph_id'     'graph_order'
+        '%s%s%d%s'... % 'structure_id_path'    'color_hex_triplet' neuro_name_structure_id neuro_name_structure_id_path
+        '%s%d%d%d'... % 'failed'    'sphinx_id' structure_name_facet failed_facet
+        '%s'], 'delimiter', ','); % safe_name
+
     titles = ['index' titles];
-    data = [[0:numel(data{1})-1]' data];    
+    data = [[0:numel(data{1})-1]' data];
 
 end
 
@@ -1533,7 +1616,7 @@ function selIdx = hierarchical_select(st)
 
 selID = 567; % Cerebrum, default to start
 
-[boxList, idList] = makeBoxList(st, selID); 
+[boxList, idList] = makeBoxList(st, selID);
 
 ud.idList = idList; ud.st = st;
 
@@ -1544,20 +1627,20 @@ f = figure; set(f, 'KeyPressFcn', @hierarchical_select_ok);
 ud.hBox = uicontrol(f, 'Style', 'listbox', 'String', boxList, ...
     'Callback', @hierarchical_select_update, 'Value', find(idList==selID),...
     'Units', 'normalized', 'Position', [0.1 0.2 0.8 0.7],...
-    'KeyPressFcn', @hierarchical_select_ok); 
+    'KeyPressFcn', @hierarchical_select_ok);
 
 titleStr = boxList{idList==selID}; titleStr = titleStr(find(titleStr~=' ', 1):end);
 ud.hSelTitle = uicontrol(f, 'Style', 'text', ...
     'String', sprintf('Selected: %s', titleStr), ...
-    'Units', 'normalized', 'Position', [0.1 0.9 0.8 0.1]); 
+    'Units', 'normalized', 'Position', [0.1 0.9 0.8 0.1]);
 
 ud.hCancel = uicontrol(f, 'Style', 'pushbutton', ...
     'String', 'Cancel', 'Callback', @hierarchical_select_cancel, ...
-    'Units', 'normalized', 'Position', [0.1 0.1 0.2 0.1]); 
+    'Units', 'normalized', 'Position', [0.1 0.1 0.2 0.1]);
 
 ud.hOK = uicontrol(f, 'Style', 'pushbutton', ...
     'String', 'OK', 'Callback', @hierarchical_select_ok, ...
-    'Units', 'normalized', 'Position', [0.3 0.1 0.2 0.1]); 
+    'Units', 'normalized', 'Position', [0.3 0.1 0.2 0.1]);
 
 set(f, 'UserData', ud);
 drawnow;
@@ -1576,7 +1659,7 @@ if ishghandle(f)
         selIdx = [];
     end
     delete(f)
-    drawnow; 
+    drawnow;
 else
     selIdx = [];
 end
@@ -1613,13 +1696,13 @@ end
 
 function hierarchical_select_update(src, ~)
 
-f = get(src, 'Parent'); 
+f = get(src, 'Parent');
 ud = get(f, 'UserData');
 st = ud.st; idList = ud.idList;
 
 selID = idList(get(src, 'Value'));
 
-[boxList, idList] = makeBoxList(st, selID); 
+[boxList, idList] = makeBoxList(st, selID);
 
 ud.idList = idList;
 set(f, 'UserData', ud);
@@ -1632,7 +1715,7 @@ end
 
 % OK callback
 function hierarchical_select_ok(~, ~)
-    uiresume(gcbf);
+uiresume(gcbf);
 end
 
 % Cancel callback
