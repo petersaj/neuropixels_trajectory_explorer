@@ -6,7 +6,7 @@ Neuropixels trajectory explorer with the Allen CCF mouse atlas or Waxholm rat at
 **Keep the GUI up-to-date:** there are semi-regular upgrades (sometimes just a feature, sometimes something critical like getting a better estimate of distances and angles), so make sure to pull the current repository whenever planning a new trajectory.
 
 Mouse CCF scaling, rotation, and bregma notes:
-* The CCF scaling is based on a single mouse. To approximate average scaling, the "Toronto MRI" transform is used: 1.031*AP, 0.952*ML, 0.885*DV (based on [this data](https://www.nature.com/articles/s41467-018-04921-2), MRI-CCF fits by Steven J West from the IBL, configured as CCF transform by Dan Birman for [Pinpoint](https://github.com/VirtualBrainLab/Pinpoint))
+* The CCF scaling is based on a single mouse. To approximate average scaling, the "Toronto MRI" transform is used: 1.031**AP, 0.952*ML, 0.885*DV (based on [this data](https://www.nature.com/articles/s41467-018-04921-2), MRI-CCF fits by Steven J West from the IBL, configured as CCF transform by Dan Birman for [Pinpoint](https://github.com/VirtualBrainLab/Pinpoint))
 * The CCF AP rotation is arbitrary with reference to the skull, this angle here is 5 degrees nose-down (as estimated in [this paper](https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3)).
 * Bregma has been approximated in AP by visually matching the Paxinos atlas slice at AP=0, the ML position is the midline, and the DV position (i.e. distance from brain surface to skull surface) is a very rough approximation from matching an MRI image.
 
