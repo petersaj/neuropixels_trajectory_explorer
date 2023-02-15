@@ -771,9 +771,9 @@ probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth, % .0f%c elevation'
 probe_insertion_text = sprintf('Probe insertion: % .2f AP, % .2f ML, % .2f depth', ...
     probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_depth);
 % (probe start/endpoints)
-recording_startpoint_text = sprintf('Recording start: % .2f AP, % .2f ML, % .2f DV', ...
+recording_startpoint_text = sprintf('Recording top: % .2f AP, % .2f ML, % .2f DV', ...
     probe_vector([2,1,3],1));
-recording_endpoint_text = sprintf('Recording end:   % .2f AP, % .2f ML, % .2f DV', ...
+recording_endpoint_text = sprintf('Recording tip:   % .2f AP, % .2f ML, % .2f DV', ...
     probe_vector([2,1,3],2));
 
 % (combine and update)
@@ -1416,7 +1416,7 @@ guidata(probe_atlas_gui, gui_data);
 % Set up timer function for updating probe position
 newscale_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
 gui_data.newscale_timer_fcn = timer('TimerFcn', ...
-    {@get_newscale_position,probe_atlas_gui}, ... % @(~,~)get_newscale_position(probe_atlas_gui)
+    {@get_newscale_position,probe_atlas_gui}, ...
     'Period', 1/newscale_query_rate, 'ExecutionMode','fixedDelay', ...
     'TasksToExecute', inf);
 
@@ -1514,14 +1514,14 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
         update_brain_scale(probe_atlas_gui,newscale_bregma_lambda_distance);
     end
 
-    % Update the slice and probe coordinates
-    update_probe_coordinates(probe_atlas_gui);
-
 end
 
-% Select MPM-selected probe (0-indexed)
-newscale_selected_probe = gui_data.newscale_client.AppData.SelectedProbe+1;
+% Select MPM-selected probe (0-indexed, unselected = -1 so force >1)
+newscale_selected_probe = max(gui_data.newscale_client.AppData.SelectedProbe+1,1);
 select_probe(gui_data.handles.probe_line(newscale_selected_probe),[],probe_atlas_gui)
+
+% Update the slice and probe coordinates
+update_probe_coordinates(probe_atlas_gui);
 
 % Update slice
 update_slice(probe_atlas_gui);
