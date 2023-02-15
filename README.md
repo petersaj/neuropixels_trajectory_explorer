@@ -49,23 +49,34 @@ A video demo of usage (from the [UCL Neuropixels 2021 course](https://www.ucl.ac
 ### Overview of interface
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/overview.PNG)
 
-#### Control panel
-- Probe controls: 
-  - arrow keys (translate), SHIFT+arrow keys (rotate probe by moving bottom), ALT+arrow keys (depth along probe axis)
+#### Controls
+Moving the probe: arrow keys
+Insert/retract the probe: alt + arrow keys
+Move probe tip independent from top (changes probe angle): shift + arrow keys
+Select probe (if more than one): click on probe, selected is blue
+
+Menu descriptions:
+- **Probe controls**
+  - Display controls: pop up box with probe controls
   - Set entry: move probe to specific entry coordinates
   - Set endpoint: move probe to specific endpoint coordinates (NOTE: this uses the roughly approximated bregma DV position)
-- 3D areas: pick an area (through a comprehensive list, search, or hierarchy) to draw in 3D on the atlas
+  - Add probe: add a new probe
+  - Remove probe: remove selected probe (unless only 1 probe)
+- **3D areas**
   - List areas: choose from list all areas in the CCF
   - Search areas: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
-  - Hierarchy areas: drill down to areas on the hierarchy, select structures at any level of the hierarchy (e.g. select all "primary visual cortex" instead of by layer like "primary visual cortex layer 1")
+  - Hierarchy areas: pick CCF area by regional hierarchy
   - Remove areas: select previously drawn 3D areas to remove 
-- Toggle visibility: turn on/off visibility ('Slice' switches between displaying anatomy, CCF-parsed regions, or nothing)
-  - Slice: toggle brain slice between anatomy (greyscale), CCF regions (with CCF-assigned colors), or off
-  - Brain outline: toggle brain outline visibility on/off
-  - Probe: toggle probe visibility on/off
-  - 3D areas: toggle 3D areas visibility on/off
-  - Dark mode: toggle white/black font and background (can make some colors like yellow cerebellum easier to see)
-- Other: in development, not currently in regular use
+- **Display**
+  - Region names: display full or abbreviated region names under "probe areas" plot
+  - Slice: brain slice between anatomy (greyscale), CCF regions (with CCF-assigned colors), or off
+  - Brain outline: brain outline visibility
+  - Probe: probe visibility
+  - 3D areas: 3D areas visibility
+  - Dark mode: white or black background
+- **Manipulator**
+  - New Scale MPM: sync with New Scale MPM manipulator
+  - Scientifica Patchstar: sync with Scientifica Patchstar manipulator
 
 #### Atlas
 The atlas can be rotated by clicking and dragging (the slice updates when the mouse is released). The probe can be moved with the arrow keys (+SHIFT: rotation, +ALT: depth).
@@ -73,8 +84,7 @@ The atlas can be rotated by clicking and dragging (the slice updates when the mo
 #### Probe areas
 These are the regions that the probe (blue line) is passing through
 
-
-### Experimental use of Neuropixels coordinates
+### Practical use of Neuropixels coordinates for experiments
 The coordinates of the probe are displayed above the atlas relative to **bregma (anterior/posterior and medial/lateral)** and the **brain surface (depth, axis along the probe)**
 
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/positions.png)
@@ -83,14 +93,20 @@ The angles of the manipulator are displayed as the **azimuth (polar) relative to
 
 ![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/angles.png)
 
-
 During the experiment:
 - Position the manipulator angles in azimuth/polar and elevation/pitch
 - Position the probe tip over bregma and zero the AP/ML coordinates
 - Move the probe tip until it's lightly touching the brain at the desired AP/ML coordinates
 - Zero the depth coordinate (along the probe-axis), then descend until the desired depth is reached
 
-## Changelog
+## Manipulator interfacing
+### New Scale Manipulators
+Interfacing with New Scale MPM requires the "Pathfinder" software running the HTTP server (see documentation from New Scale). This is functional both in simulation mode and with physical manipulators.
+
+To connect with Pathfinder, click Manipulator > New Scale MPM, then select the IP address
+
+## Major change log
+2023-02-15: Moved controls to menu, added full New Scale MPM interfacing
 2022-09-23: Changed CCF rotation to 5 degrees AP (clarification from IBL paper)
 2022-07-20: Updated position readout for clarification
 2022-05-20: Added rat trajectory explorer ('neuropixels_trajectory_explorer_rat')
