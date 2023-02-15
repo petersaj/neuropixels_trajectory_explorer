@@ -34,12 +34,45 @@ gui_data = struct;
 %% Load atlas and associated data
 
 % Load in atlas
-% (directory with CCF must be in matlab path to find it)
 % Find path with CCF
-allen_atlas_path = fileparts(which('template_volume_10um.npy'));
-if isempty(allen_atlas_path)
-    error('CCF atlas not in MATLAB path (click ''Set path'', add folder with CCF)');
+if ~isdeployed
+    % (if being run in matlab: find CCF in the matlab path)
+    allen_atlas_path = fileparts(which('template_volume_10um.npy'));
+    if isempty(allen_atlas_path)
+        error('CCF atlas not in MATLAB path (click ''Set path'', add folder with CCF)');
+    end
+elseif isdeployed
+    % (if being run standalone: use previous user-supplied path, or query if files not available)
+    load('nte_paths.mat')
+    allen_atlas_path = nte_paths.allen_atlas_path;
+
+    if isempty(allen_atlas_path)
+        % (use uigetdir_workaround: matlab-issued workaround for R2018a bug)
+        allen_atlas_path = uigetdir_workaround([],'Select folder with Allen CCF');
+        tv_fn = [allen_atlas_path filesep 'template_volume_10um.npy'];
+        av_fn = [allen_atlas_path filesep 'annotation_volume_10um_by_index.npy'];
+        st_fn = [allen_atlas_path filesep 'structure_tree_safe_2017.csv'];
+
+        tv_exist = exist(tv_fn,'file');
+        av_exist = exist(av_fn,'file');
+        st_exist = exist(st_fn,'file');
+
+        ccf_files = {tv_fn,av_fn,st_fn};
+        ccf_exist = [tv_exist,av_exist,st_exist];
+        if any(~ccf_exist)
+            % If CCF not present in specified directory, error out
+            errordlg([{'Allen CCF files not found: '}, ...
+                ccf_files(~ccf_exist)],'Allen CCF not found');
+            return
+        else
+            % If all CCF files present, save path for future
+            nte_paths.allen_atlas_path = allen_atlas_path;
+            nte_paths_fn = which('nte_paths.mat');
+            save(nte_paths_fn,'nte_paths');
+        end
+    end
 end
+
 % Load CCF components
 tv = readNPY([allen_atlas_path filesep 'template_volume_10um.npy']); % grey-scale "background signal intensity"
 av = readNPY([allen_atlas_path filesep 'annotation_volume_10um_by_index.npy']); % the number at each pixel labels the area, see note below
@@ -83,7 +116,8 @@ ccf_bregma_tform = affine3d(ccf_bregma_tform_matrix);
 
 % Set up the gui
 probe_atlas_gui = figure('Toolbar','none','Menubar','none','color','w', ...
-    'Name','Neuropixels Trajectory Explorer','Units','normalized','Position',[0.21,0.2,0.7,0.7]);
+    'Name','Neuropixels Trajectory Explorer','Units','normalized','Position',[0.21,0.2,0.7,0.7], ...
+    'CloseRequestFcn',{@gui_close});
 
 % Set up the atlas axes
 axes_atlas = axes('Position',[-0.12,0.05,1,0.9],'ZDir','reverse');
@@ -163,12 +197,6 @@ view_button_h(end+1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','
     'Units','normalized','Position',button_position,'String','Horizontal','Callback',{@view_horizontal,probe_atlas_gui});
 align(view_button_h,'fixed',0.1,'middle');
 
-% Manipulator zero DV at brain surface
-% (add to gui_data to turn on/off)
-button_position = [0.75,0,0.15,0.05];
-zero_dv_button = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
-    'Units','normalized','Position',button_position,'String','Probe at brain surface >', ...
-    'Callback',{@set_manipulator_dv_offset,probe_atlas_gui},'visible','off');
 
 %% Store initial GUI data
 gui_data.tv = tv; % Intensity atlas
@@ -189,7 +217,6 @@ gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe region
 gui_data.handles.slice_plot = surface(axes_atlas,'EdgeColor','none'); % Slice on 3D atlas
 gui_data.handles.slice_volume = 'tv'; % The volume shown in the slice
 gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates text
-gui_data.handles.zero_dv_button = zero_dv_button;
 
 % Make 3D rotation the default state
 h = rotate3d(axes_atlas);
@@ -216,10 +243,21 @@ update_slice(probe_atlas_gui);
 
 end
 
-function gui_close(h,eventdata,probe_atlas_gui,control_panel)
-% When closing either GUI or control panel, close both windows
-delete(control_panel);
+function gui_close(probe_atlas_gui,eventdata)
+% When closing gui, make sure all timers are ended
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Find all timers derived by the gui
+curr_timers = timerfindall;
+gui_timers_idx = cellfun(@(x) x{2} == probe_atlas_gui,{curr_timers(:).TimerFcn});
+stop(curr_timers(gui_timers_idx));
+delete(curr_timers(gui_timers_idx));
+
+% Close the gui
 delete(probe_atlas_gui);
+
 end
 
 %% Probe controls and slice/brain updating
@@ -420,10 +458,6 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
     % Update the slice display
     set(gui_data.handles.slice_plot, ...
         'XData',plane_ml_bregma,'YData',plane_ap_bregma,'ZData',plane_dv_bregma,'CData',curr_slice);
-    drawnow;
-
-    % Upload gui_data
-    guidata(probe_atlas_gui, gui_data);
 
 end
 
@@ -1247,10 +1281,20 @@ h.Checked = new_check;
 
 switch new_check
     case 'on'
+        % Create button: zero probe at brain surface
+        button_fontsize = 12;
+        button_position = [0.75,0,0.15,0.05];
+        gui_data.handles.zero_dv_button = ...
+            uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+            'Units','normalized','Position',button_position,'String','Probe at brain surface >', ...
+            'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+        
+        % Update gui data
+        guidata(probe_atlas_gui, gui_data);
+
         % Connect to New Scale MPM Pathfinder software
         connect_newscale(probe_atlas_gui)
-        % Turn zero DV button on
-        set(gui_data.handles.zero_dv_button,'visible','on');
+
     case 'off'
         try
             stop(gui_data.newscale_timer_fcn)
@@ -1259,10 +1303,7 @@ switch new_check
         delete(gui_data.newscale_timer_fcn)
 
         % Turn zero DV button off
-        set(gui_data.handles.zero_dv_button,'visible','off');
-
-        % Update gui data
-        guidata(probe_atlas_gui, gui_data);
+        delete(gui_data.handles.zero_dv_button);
 end
 
 end
@@ -1276,23 +1317,46 @@ function connect_newscale(probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Initialize MPM client
-% (if MPM client not in path, find it and add to the path)
-newscale_client_file = 'NstMpmClientAccess.dll';
-if ~exist(newscale_client_file,'file')
-    [~,newscale_client_path] = uigetfile(newscale_client_file,sprintf('Choose MPM client file (%s)',newscale_client_file));
-    newscale_client_filename = fullfile(newscale_client_path,newscale_client_file);
+if ~isdeployed
+    % (being run in matlab: if MPM client not in path, find it and add to the path)
+    newscale_client_file = 'NstMpmClientAccess.dll';
+    if ~exist(newscale_client_file,'file')
+        [~,newscale_client_path] = uigetfile(newscale_client_file,sprintf('Choose MPM client file (%s)',newscale_client_file));
+        newscale_client_filename = fullfile(newscale_client_path,newscale_client_file);
 
-    if ~exist(newscale_client_filename,'file')
-        % error out if file doesn't exist
-        error('Please supply MPM client file (%s) - ',newscale_client_file)
-    else
-        % if file exists, add folder to path and save
-        addpath(newscale_client_path)
-        savepath
+        if ~exist(newscale_client_filename,'file')
+            % error out if file doesn't exist
+            error('Please supply MPM client file (%s) - ',newscale_client_file)
+        else
+            % if file exists, add folder to path and save
+            addpath(newscale_client_path)
+            savepath
+        end
+    end
+
+    newscale_client_filename = which(newscale_client_file);
+
+elseif isdeployed
+    % (standalone: load from saved file path, or query if not found)
+    load('nte_paths.mat');
+    mpm_client_filename = nte_paths.mpm_client_filename;
+    if ~exist(mpm_client_filename,'file')
+        % (use uigetdir_workaround: matlab-issued workaround for R2018a bug)
+        mpm_client_path = uigetdir_workaround([],'Select folder with MPM client');
+        mpm_client_filename = fullfile(mpm_client_path,'NstMpmClientAccess.dll');
+        if ~exist(mpm_client_filename,'file')
+            % If MPM client not present in specified directory, error out
+            errordlg(sprintf('MPM client not found: %s',mpm_client_filename));
+            return
+        else
+            % If MPM client present, save path for future
+            nte_paths.mpm_client_filename = mpm_client_filename;
+            nte_paths_fn = which('nte_paths.mat');
+            save(nte_paths_fn,'nte_paths');
+        end
     end
 end
 
-newscale_client_filename = which(newscale_client_file);
 NET.addAssembly(newscale_client_filename);
 import NstMpmClientAccess.*
 newscale_client = NstMpmClientAccess.NstMpmClient;
@@ -1328,12 +1392,15 @@ elseif user_n_probes < newscale_n_probes
     end
 end
 
+% Set manipulator DV offset for brain surface 
+gui_data.manipulator_dv_offset = zeros(newscale_n_probes,1);
+
 % Save newscale_client in guidata
 gui_data.newscale_client = newscale_client;
 guidata(probe_atlas_gui, gui_data);
 
 % Set up timer function for updating probe position
-newscale_query_rate = 2; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+newscale_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
 gui_data.newscale_timer_fcn = timer('TimerFcn', ...
     {@get_newscale_position,probe_atlas_gui}, ... % @(~,~)get_newscale_position(probe_atlas_gui)
     'Period', 1/newscale_query_rate, 'ExecutionMode','fixedDelay', ...
@@ -1405,13 +1472,13 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
         -max_ref_length);
 
     % Move probe reference (draw line through point and DV 0 with max length)
-    probe_ref_top_ap = interp1(probe_tip(3)+[0,z],probe_tip(2)+[0,y],0,'linear','extrap');
-    probe_ref_top_ml = interp1(probe_tip(3)+[0,z],probe_tip(1)+[0,x],0,'linear','extrap');
+    probe_ref_top_ap = interp1(probe_vector(3,2)+[0,z],probe_vector(2,2)+[0,y],0,'linear','extrap');
+    probe_ref_top_ml = interp1(probe_vector(3,2)+[0,z],probe_vector(1,2)+[0,x],0,'linear','extrap');
 
     probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
     probe_ref_bottom = probe_ref_top + [x,y,z];
 
-    probe_ref_vector = [probe_ref_top;probe_ref_bottom]' + manipulator_dv_offset;
+    probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
 
     set(gui_data.handles.probe_ref_line(curr_newscale_probe), ...
         'XData',probe_ref_vector(1,:), ...
@@ -1450,11 +1517,7 @@ function set_manipulator_dv_offset(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% % Get probe position from MPM query
-% gui_data.newscale_client.QueryMpmApplication;
-% newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(gui_data.newscale_client.AppData.SelectedProbe);
-% probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
-
+% Get probe position
 probe_position = ...
     [gui_data.handles.probe_line(gui_data.selected_probe).XData; ...
     gui_data.handles.probe_line(gui_data.selected_probe).YData; ...
@@ -1473,13 +1536,9 @@ manipulator_dv_offset = ...
 
 % Store DV offset for currently selected probe
 % (combine with current offset, if there is one)
-if isfield(gui_data,'manipulator_dv_offset') && ...
-        length(gui_data.manipulator_dv_offset) >= gui_data.selected_probe
-    manipulator_dv_offset_total = ...
-        manipulator_dv_offset + gui_data.manipulator_dv_offset(gui_data.selected_probe);
-else
-    manipulator_dv_offset_total = manipulator_dv_offset;
-end
+manipulator_dv_offset_total = ...
+    manipulator_dv_offset + gui_data.manipulator_dv_offset(gui_data.selected_probe);
+
 gui_data.manipulator_dv_offset(gui_data.selected_probe) = manipulator_dv_offset_total;
 
 % Update gui data
@@ -1503,9 +1562,17 @@ end
 
 % Draw brain outline
 slice_spacing = 5;
-brain_volume = ...
-    bwmorph3(bwmorph3(gui_data.av(1:slice_spacing:end, ...
-    1:slice_spacing:end,1:slice_spacing:end)>1,'majority'),'majority');
+if ~isdeployed
+    % (being run in matlab: can use bwmorph3)
+    brain_volume = ...
+        bwmorph3(bwmorph3(gui_data.av(1:slice_spacing:end, ...
+        1:slice_spacing:end,1:slice_spacing:end)>1,'majority'),'majority');
+elseif isdeployed
+    % (standalone mode: can't use bwmorph3, slightly messier volume)
+    brain_volume = ...
+        av(1:slice_spacing:end, ...
+        1:slice_spacing:end,1:slice_spacing:end)>1;
+end
 
 [ap_grid_ccf,dv_grid_ccf,ml_grid_ccf] = ...
     ndgrid(1:slice_spacing:size(gui_data.av,1), ...
