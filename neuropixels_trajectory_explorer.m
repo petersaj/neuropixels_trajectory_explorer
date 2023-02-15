@@ -1316,6 +1316,11 @@ function connect_newscale(probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
+% Add "connecting" message
+probe_coordinates_text_props = get(gui_data.probe_coordinates_text);
+set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
+set(gui_data.probe_coordinates_text,'ForegroundColor','r')
+
 % Initialize MPM client
 if ~isdeployed
     % (being run in matlab: if MPM client not in path, find it and add to the path)
@@ -1405,6 +1410,9 @@ gui_data.newscale_timer_fcn = timer('TimerFcn', ...
     {@get_newscale_position,probe_atlas_gui}, ... % @(~,~)get_newscale_position(probe_atlas_gui)
     'Period', 1/newscale_query_rate, 'ExecutionMode','fixedDelay', ...
     'TasksToExecute', inf);
+
+% Restore text color
+set(gui_data.probe_coordinates_text,'ForegroundColor',probe_coordinates_text_props.ForegroundColor)
 
 % Store timer function and start
 % (necessary for the standalone, which deletes function on 'start')

@@ -243,16 +243,21 @@ update_slice(probe_atlas_gui);
 
 end
 
-function gui_close(h,eventdata)
+function gui_close(probe_atlas_gui,eventdata)
 % When closing gui, make sure all timers are ended
 
 % Get guidata
-gui_data = guidata(h);
+gui_data = guidata(probe_atlas_gui);
 
+% Find all timers derived by the gui
+curr_timers = timerfindall;
+gui_timers_idx = cellfun(@(x) x{2} == probe_atlas_gui,{curr_timers(:).TimerFcn});
+stop(curr_timers(gui_timers_idx));
+delete(curr_timers(gui_timers_idx));
 
-
-delete(control_panel);
+% Close the gui
 delete(probe_atlas_gui);
+
 end
 
 %% Probe controls and slice/brain updating
@@ -453,10 +458,6 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
     % Update the slice display
     set(gui_data.handles.slice_plot, ...
         'XData',plane_ml_bregma,'YData',plane_ap_bregma,'ZData',plane_dv_bregma,'CData',curr_slice);
-    drawnow;
-
-    % Upload gui_data
-    guidata(probe_atlas_gui, gui_data);
 
 end
 
@@ -1315,6 +1316,12 @@ function connect_newscale(probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
+% Add "connecting" message
+probe_coordinates_text_props = get(gui_data.probe_coordinates_text);
+set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
+set(gui_data.probe_coordinates_text,'ForegroundColor','r')
+set(gui_data.probe_coordinates_text,'FontSize',20)
+
 % Initialize MPM client
 if ~isdeployed
     % (being run in matlab: if MPM client not in path, find it and add to the path)
@@ -1409,6 +1416,11 @@ gui_data.newscale_timer_fcn = timer('TimerFcn', ...
 % (necessary for the standalone, which deletes function on 'start')
 guidata(probe_atlas_gui,gui_data);
 start(gui_data.newscale_timer_fcn)
+
+% Restore text properties
+probe_coordinates_text_props = get(gui_data.probe_coordinates_text);
+set(gui_data.probe_coordinates_text,'ForegroundColor',probe_coordinates_text_props.ForegroundColor)
+set(gui_data.probe_coordinates_text,'FontSize',probe_coordinates_text_props.FontSize)
 
 end
 
