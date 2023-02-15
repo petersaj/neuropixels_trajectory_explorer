@@ -103,7 +103,9 @@ During the experiment:
 ### New Scale Manipulators
 Interfacing with New Scale MPM requires the "Pathfinder" software running the HTTP server (see documentation from New Scale). This is functional both in simulation mode and with physical manipulators.
 
-To connect with Pathfinder, click Manipulator > New Scale MPM, then enter the IP address and port for the Pathfinder HTTP server. If the same computer, IP is localhost, and the default port is 8080 (find this on Pathfinder by: Coordinate Sys > ... > Http server > Port)
+To connect with Pathfinder, click Manipulator > New Scale MPM. This requires the New Scale client access DLL (NstMpmClientAccess.dll), and the user will have to give the location of that file the first time this connection is made.
+
+In the dialog box that appears, enter the IP address and port for the Pathfinder HTTP server. If the same computer, IP is localhost, and the default port is 8080 (find this on Pathfinder by: Coordinate Sys > ... > Http server > Port)
 
 Once connected, the probe positions in the trajectory explorer will synchronize with Pathfinder, and the text will turn from red to black when completed.
 
