@@ -250,10 +250,13 @@ function gui_close(probe_atlas_gui,eventdata)
 gui_data = guidata(probe_atlas_gui);
 
 % Find all timers derived by the gui
-curr_timers = timerfindall;
-gui_timers_idx = cellfun(@(x) x{2} == probe_atlas_gui,{curr_timers(:).TimerFcn});
-stop(curr_timers(gui_timers_idx));
-delete(curr_timers(gui_timers_idx));
+if ~isdeployed
+    % (only necessary if running from matlab)
+    curr_timers = timerfindall;
+    gui_timers_idx = cellfun(@(x) x{2} == probe_atlas_gui,{curr_timers(:).TimerFcn});
+    stop(curr_timers(gui_timers_idx));
+    delete(curr_timers(gui_timers_idx));
+end
 
 % Close the gui
 delete(probe_atlas_gui);
@@ -1344,18 +1347,18 @@ if ~isdeployed
 elseif isdeployed
     % (standalone: load from saved file path, or query if not found)
     load('nte_paths.mat');
-    mpm_client_filename = nte_paths.mpm_client_filename;
-    if ~exist(mpm_client_filename,'file')
+    newscale_client_filename = nte_paths.newscale_client_filename;
+    if ~exist(newscale_client_filename,'file')
         % (use uigetdir_workaround: matlab-issued workaround for R2018a bug)
-        mpm_client_path = uigetdir_workaround([],'Select folder with MPM client');
-        mpm_client_filename = fullfile(mpm_client_path,'NstMpmClientAccess.dll');
-        if ~exist(mpm_client_filename,'file')
+        newscale_client_path = uigetdir_workaround([],'Select folder with MPM client');
+        newscale_client_filename = fullfile(newscale_client_path,'NstMpmClientAccess.dll');
+        if ~exist(newscale_client_filename,'file')
             % If MPM client not present in specified directory, error out
-            errordlg(sprintf('MPM client not found: %s',mpm_client_filename));
+            errordlg(sprintf('MPM client not found: %s',newscale_client_filename));
             return
         else
             % If MPM client present, save path for future
-            nte_paths.mpm_client_filename = mpm_client_filename;
+            nte_paths.newscale_client_filename = newscale_client_filename;
             nte_paths_fn = which('nte_paths.mat');
             save(nte_paths_fn,'nte_paths');
         end
@@ -1563,11 +1566,6 @@ function draw_brain(probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% If a brain outline exists, delete it
-if isfield(gui_data.handles,'brain_outline') && ishandle(gui_data.handles.brain_outline)
-    delete(gui_data.handles.brain_outline);
-end
-
 % Draw brain outline
 slice_spacing = 5;
 if ~isdeployed
@@ -1578,7 +1576,7 @@ if ~isdeployed
 elseif isdeployed
     % (standalone mode: can't use bwmorph3, slightly messier volume)
     brain_volume = ...
-        av(1:slice_spacing:end, ...
+        gui_data.av(1:slice_spacing:end, ...
         1:slice_spacing:end,1:slice_spacing:end)>1;
 end
 
@@ -1593,14 +1591,22 @@ end
 brain_outline_patchdata = isosurface(ml_grid_bregma,ap_grid_bregma, ...
     dv_grid_bregma,brain_volume,0.5);
 
-brain_outline = patch( ...
-    gui_data.handles.axes_atlas, ...
-    'Vertices',brain_outline_patchdata.vertices, ...
-    'Faces',brain_outline_patchdata.faces, ...
-    'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1, ...
-    'PickableParts','none'); % make unclickable, since probes are inside and clickable
-
-gui_data.handles.brain_outline = brain_outline;
+if ~isfield(gui_data.handles,'brain_outline')
+    % If a brain outline doesn't exist yet, draw it
+    brain_outline = patch( ...
+        gui_data.handles.axes_atlas, ...
+        'Vertices',brain_outline_patchdata.vertices, ...
+        'Faces',brain_outline_patchdata.faces, ...
+        'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1, ...
+        'PickableParts','none'); % make unclickable, since probes are inside and clickable
+    
+    gui_data.handles.brain_outline = brain_outline;
+else
+    % If a brain outline exists, set new faces/vertices
+    set(gui_data.handles.brain_outline, ...
+        'Vertices',brain_outline_patchdata.vertices, ...
+        'Faces',brain_outline_patchdata.faces);
+end
 
 % Set the axes bounds to contain the whole brain
 xlim(gui_data.handles.axes_atlas,[min(ml_grid_bregma(:)),max(ml_grid_bregma(:))]);
