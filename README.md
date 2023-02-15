@@ -125,12 +125,12 @@ Typical workflow:
   - Move probe into brain along the Z (direction of probe) axis, then insert to desired depth
 
 ## Major change log
--2023-02-15: Moved controls to menu, added full New Scale MPM interfacing
--2022-09-23: Changed CCF rotation to 5 degrees AP (clarification from IBL paper)
--2022-07-20: Updated position readout for clarification
--2022-05-20: Added rat trajectory explorer ('neuropixels_trajectory_explorer_rat')
--2022-05-18: Changed coordinate system to allow for more flexible coordinate changes in future (including user-set scalings/rotations)
--2022-05-17: Rotated CCF 7 degrees in AP to line up to a leveled bregma-lambda (angle from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3.full.pdf)
--2021-12-15: Added 'set endpoint' functionality, approximated bregma DV (from MRI - very rough)
+- 2023-02-15: Moved controls to menu, added full New Scale MPM interfacing
+- 2022-09-23: Changed CCF rotation to 5 degrees AP (clarification from IBL paper)
+- 2022-07-20: Updated position readout for clarification
+- 2022-05-20: Added rat trajectory explorer ('neuropixels_trajectory_explorer_rat')
+- 2022-05-18: Changed coordinate system to allow for more flexible coordinate changes in future (including user-set scalings/rotations)
+- 2022-05-17: Rotated CCF 7 degrees in AP to line up to a leveled bregma-lambda (angle from https://www.biorxiv.org/content/10.1101/2022.05.09.491042v3.full.pdf)
+- 2021-12-15: Added 'set endpoint' functionality, approximated bregma DV (from MRI - very rough)
 
 
