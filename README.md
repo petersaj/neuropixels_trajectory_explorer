@@ -103,7 +103,12 @@ During the experiment:
 ### New Scale Manipulators
 Interfacing with New Scale MPM requires the "Pathfinder" software running the HTTP server (see documentation from New Scale). This is functional both in simulation mode and with physical manipulators.
 
-To connect with Pathfinder, click Manipulator > New Scale MPM, then select the IP address
+To connect with Pathfinder, click Manipulator > New Scale MPM, then enter the IP address and port for the Pathfinder HTTP server. If the same computer, IP is localhost, and the default port is 8080 (find this on Pathfinder by: Coordinate Sys > ... > Http server > Port)
+
+Once connected, the probe positions in the trajectory explorer will synchronize with Pathfinder, and the text will turn from red to black when completed.
+
+A new button will appear at the bottom of the "Probe areas" plot, used to set a DV offset to the probe:
+![image](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/newscale_buttons.png)
 
 ## Major change log
 2023-02-15: Moved controls to menu, added full New Scale MPM interfacing
