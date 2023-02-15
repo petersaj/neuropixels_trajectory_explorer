@@ -253,9 +253,11 @@ gui_data = guidata(probe_atlas_gui);
 if ~isdeployed
     % (only necessary if running from matlab)
     curr_timers = timerfindall;
-    gui_timers_idx = cellfun(@(x) x{2} == probe_atlas_gui,{curr_timers(:).TimerFcn});
-    stop(curr_timers(gui_timers_idx));
-    delete(curr_timers(gui_timers_idx));
+    if ~isempty(curr_timers)
+        gui_timers_idx = cellfun(@(x) x{2} == probe_atlas_gui,{curr_timers(:).TimerFcn});
+        stop(curr_timers(gui_timers_idx));
+        delete(curr_timers(gui_timers_idx));
+    end
 end
 
 % Close the gui
@@ -1370,8 +1372,8 @@ import NstMpmClientAccess.*
 newscale_client = NstMpmClientAccess.NstMpmClient;
 
 % Get IP and port configuration (default is same computer, port 8080)
-newscale_client_settings = inputdlg({'MPM IP address (Computer running VCS):', ...
-    'MPM Port (Coordinate Sys > ... > Http server) :'},'MPM',1,{'localhost','8080'});
+newscale_client_settings = inputdlg({'IP address (Computer running Pathfinder):', ...
+    'Port (Pathfinder: Coordinate Sys > ... > Http server) :'},'Pathfinder',1,{'localhost','8080'});
 newscale_client.IP_Address = newscale_client_settings{1};
 newscale_client.Port = str2num(newscale_client_settings{2});
 
