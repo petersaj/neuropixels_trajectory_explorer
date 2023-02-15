@@ -1448,10 +1448,13 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
 
     % Calculate top position of the probe (back up from bottom by angles)
-    % (MPM convention: Polar: same, Pitch: 0 is vertical)
-    % (using length of recording sites, not full length of the probe from VCS)
-    mpm2nte_angles = [newscale_probe_info.Polar, 90-newscale_probe_info.Pitch];
 
+    % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
+    mpm2nte_angles = ...
+        [newscale_probe_info.Polar-double(gui_data.newscale_client.AppData.PosteriorAngle), ...
+        90-newscale_probe_info.Pitch];
+
+    % (using length of recording sites, not full length of the probe from VCS)
     [x,y,z] = sph2cart( ...
         deg2rad(90-mpm2nte_angles(1)),  ...
         deg2rad(180+mpm2nte_angles(2)), ...
