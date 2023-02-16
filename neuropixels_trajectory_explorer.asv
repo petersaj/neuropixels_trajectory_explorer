@@ -809,9 +809,14 @@ function update_brain_scale(probe_atlas_gui,bregma_lambda_distance)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
+% Add "rescaling" message
+set(gui_data.probe_coordinates_text,'String','RESCALING BRAIN...');
+set(gui_data.probe_coordinates_text,'Color','r');
+drawnow;
+
 % Get the sizing scale of this mouse to the reference atlas
 mouse_scale = bregma_lambda_distance/ ...
-    gui_data.avg_bregma_lambda_distance;
+    gui_data.bregma_lambda_distance_avg;
 
 % Apply scale to reference transform and set to new transform
 mouse_scale_tform = eye(4).*[repmat(mouse_scale,3,1);1];
@@ -832,6 +837,12 @@ for redraw_area = gui_data.structure_plot_idx
 end
 % - Slice
 update_slice(probe_atlas_gui);
+
+% Update probe coordinates
+update_probe_coordinates(probe_atlas_gui);
+
+% Restore text color
+set(gui_data.probe_coordinates_text,'Color','k')
 
 end
 
@@ -966,15 +977,16 @@ update_slice(probe_atlas_gui);
 end
 
 function set_bregma_lambda_distance(h,eventdata,probe_atlas_gui)
-keyboard
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
 % Input bregma-lambda distance (default is standard average)
-a = inputdlg('Bregma-Lambda distance (mm):','', ...
-    1,{num2str(gui_data.bregma_lambda_distance_avg)});
+bregma_lambda_distance_new = ...
+    cellfun(@str2num,inputdlg('Bregma-Lambda distance (mm):','', ...
+    1,{num2str(gui_data.bregma_lambda_distance_avg)}));
 
+update_brain_scale(probe_atlas_gui,bregma_lambda_distance_new);
 
 end
 
@@ -1324,13 +1336,45 @@ switch new_check
 
     case 'off'
         try
-            stop(gui_data.newscale_timer_fcn)
+            stop(gui_data.manipulator_timer_fcn)
         catch
         end
-        delete(gui_data.newscale_timer_fcn)
+        delete(gui_data.manipulator_timer_fcn)
 
-        % Turn zero DV button off
+        % Remove manipulator buttons
         delete(gui_data.handles.zero_dv_button);
+end
+
+end
+
+function manipulator_scientifica(h,eventdata,probe_atlas_gui)
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
+
+switch new_check
+    case 'on'
+        % Create button: zero manipulator
+        button_fontsize = 12;
+        button_position = [0.75,0,0.15,0.05];
+        gui_data.handles.zero_manipulator_button = ...
+            uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+            'Units','normalized','Position',button_position,'String','Zero manipulator', ...
+            'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+        
+        % Update gui data
+        guidata(probe_atlas_gui, gui_data);
+
+        % Connect to New Scale MPM Pathfinder software
+        connect_scientifica(probe_atlas_gui)
+
+    case 'off'
+        % Remove manipulator buttons
+        delete(gui_data.handles.zero_manipulator_button);
 end
 
 end
@@ -1344,9 +1388,8 @@ function connect_newscale(probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Add "connecting" message
-probe_coordinates_text_props = get(gui_data.probe_coordinates_text);
 set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
-set(gui_data.probe_coordinates_text,'ForegroundColor','r')
+set(gui_data.probe_coordinates_text,'Color','r')
 
 % Initialize MPM client
 if ~isdeployed
@@ -1432,19 +1475,19 @@ gui_data.newscale_client = newscale_client;
 guidata(probe_atlas_gui, gui_data);
 
 % Set up timer function for updating probe position
-newscale_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
-gui_data.newscale_timer_fcn = timer('TimerFcn', ...
+manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
     {@get_newscale_position,probe_atlas_gui}, ...
-    'Period', 1/newscale_query_rate, 'ExecutionMode','fixedDelay', ...
+    'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
     'TasksToExecute', inf);
 
 % Restore text color
-set(gui_data.probe_coordinates_text,'ForegroundColor',probe_coordinates_text_props.ForegroundColor)
+set(gui_data.probe_coordinates_text,'Color','k')
 
 % Store timer function and start
 % (necessary for the standalone, which deletes function on 'start')
 guidata(probe_atlas_gui,gui_data);
-start(gui_data.newscale_timer_fcn)
+start(gui_data.manipulator_timer_fcn)
 
 end
 
@@ -1584,6 +1627,127 @@ guidata(probe_atlas_gui, gui_data);
 
 end
 
+function connect_scientifica(probe_atlas_gui)
+% TO DO: here
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Add "connecting" message
+set(gui_data.probe_coordinates_text,'String','CONNECTING TO SCIENTIFICA PATCHSTAR...');
+set(gui_data.probe_coordinates_text,'Color','r')
+
+serial_ports = serialportlist('all');
+
+%%%% TO DO: 
+s = serialport('COM4',9600);
+configureTerminator(s,'CR');
+% Set auto-angle
+writeline(s,'ANGLE A');
+readline(s);
+
+% Set up timer function for updating probe position
+manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
+    {@get_scientifica_position,probe_atlas_gui}, ...
+    'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
+    'TasksToExecute', inf);
+
+% Restore text color
+set(gui_data.probe_coordinates_text,'Color','k')
+
+% Store timer function and start
+% (necessary for the standalone, which deletes function on 'start')
+guidata(probe_atlas_gui,gui_data);
+start(gui_data.manipulator_timer_fcn)
+
+end
+
+function get_scientifica_position(obj,event,probe_atlas_gui)
+
+%%% TO DO: here
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+
+
+    % Get given MPM probe data (0-indexed)
+    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(curr_newscale_probe-1);
+
+    % Get tip position of probe (MPM convention: -Z is down)
+    probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
+
+    % Calculate top position of the probe (back up from bottom by angles)
+
+    % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
+    mpm2nte_angles = ...
+        [newscale_probe_info.Polar-double(gui_data.newscale_client.AppData.PosteriorAngle), ...
+        90-newscale_probe_info.Pitch];
+
+    % (using length of recording sites, not full length of the probe from VCS)
+    [x,y,z] = sph2cart( ...
+        deg2rad(90-mpm2nte_angles(1)),  ...
+        deg2rad(180+mpm2nte_angles(2)), ...
+        gui_data.probe_length(curr_newscale_probe));
+    probe_top = probe_tip + [x; y; z];
+
+    % Add DV offset relative to zeroing at brain surface (if applicable)
+    if isfield(gui_data,'manipulator_dv_offset') && ...
+            length(gui_data.manipulator_dv_offset) >= curr_newscale_probe
+        manipulator_dv_offset = [0;0;gui_data.manipulator_dv_offset(curr_newscale_probe)];
+    else
+        manipulator_dv_offset = zeros(3,1);
+    end
+
+    % Set probe vector
+    probe_vector = [probe_top, probe_tip] + manipulator_dv_offset;
+
+    % Update angles
+    gui_data.probe_angle{curr_newscale_probe} = mpm2nte_angles;
+
+    % Change probe location
+    set(gui_data.handles.probe_line(curr_newscale_probe), ...
+        'XData',probe_vector(1,:), ...
+        'YData',probe_vector(2,:), ...
+        'ZData',probe_vector(3,:));
+
+    % Update the probe and trajectory reference
+    ml_lim = xlim(gui_data.handles.axes_atlas);
+    ap_lim = ylim(gui_data.handles.axes_atlas);
+    dv_lim = zlim(gui_data.handles.axes_atlas);
+    max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
+    [x,y,z] = sph2cart( ...
+        deg2rad(90-mpm2nte_angles(1)),  ...
+        deg2rad(180+mpm2nte_angles(2)), ...
+        -max_ref_length);
+
+    % Move probe reference (draw line through point and DV 0 with max length)
+    probe_ref_top_ap = interp1(probe_vector(3,2)+[0,z],probe_vector(2,2)+[0,y],0,'linear','extrap');
+    probe_ref_top_ml = interp1(probe_vector(3,2)+[0,z],probe_vector(1,2)+[0,x],0,'linear','extrap');
+
+    probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
+    probe_ref_bottom = probe_ref_top + [x,y,z];
+
+    probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
+
+    set(gui_data.handles.probe_ref_line(curr_newscale_probe), ...
+        'XData',probe_ref_vector(1,:), ...
+        'YData',probe_ref_vector(2,:), ...
+        'ZData',probe_ref_vector(3,:));
+
+    % Update gui data
+    guidata(probe_atlas_gui, gui_data);
+
+
+end
+
+function zero_scientifica(h,eventdata,probe_atlas_gui)
+% Set probe tip DV at brain surface, apply DV offset
+
+writeline(s,'ZERO');
+readline(s);
+
+end
 
 
 %% General functions
