@@ -62,6 +62,8 @@ Menu descriptions:
   - Set endpoint: move probe to specific endpoint coordinates (NOTE: this uses the roughly approximated bregma DV position)
   - Add probe: add a new probe
   - Remove probe: remove selected probe (unless only 1 probe)
+- **Probe controls**
+  - Set bregma-lambda distance: set to rescale brain (relative to standard average 4.1 mm)
 - **3D areas**
   - List areas: choose from list all areas in the CCF
   - Search areas: search CCF areas (e.g. search for "CA1" to find what the CCF calls "Field CA1")
