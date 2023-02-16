@@ -1335,6 +1335,7 @@ switch new_check
         connect_newscale(probe_atlas_gui)
 
     case 'off'
+        % Stop and delete timer function
         try
             stop(gui_data.manipulator_timer_fcn)
         catch
@@ -1364,7 +1365,7 @@ switch new_check
         gui_data.handles.zero_manipulator_button = ...
             uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
             'Units','normalized','Position',button_position,'String','Zero manipulator', ...
-            'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+            'Callback',{@zero_scientifica,probe_atlas_gui});
         
         % Update gui data
         guidata(probe_atlas_gui, gui_data);
@@ -1373,6 +1374,15 @@ switch new_check
         connect_scientifica(probe_atlas_gui)
 
     case 'off'
+        % Stop and delete timer function
+        try
+            stop(gui_data.manipulator_timer_fcn)
+        catch
+        end
+        delete(gui_data.manipulator_timer_fcn)
+
+        % Delete serial connection
+        delete(gui_data.scientifica_connection)
         % Remove manipulator buttons
         delete(gui_data.handles.zero_manipulator_button);
 end
@@ -1628,7 +1638,7 @@ guidata(probe_atlas_gui, gui_data);
 end
 
 function connect_scientifica(probe_atlas_gui)
-% TO DO: here
+
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
@@ -1636,14 +1646,20 @@ gui_data = guidata(probe_atlas_gui);
 set(gui_data.probe_coordinates_text,'String','CONNECTING TO SCIENTIFICA PATCHSTAR...');
 set(gui_data.probe_coordinates_text,'Color','r')
 
-serial_ports = serialportlist('all');
+% Find serial ports and prompt choice
+serial_ports = serialportlist('available');
+scientifica_serial_port = serial_ports(listdlg( ...
+    'ListString',serial_ports,'SelectionMode','single'));
 
-%%%% TO DO: 
-s = serialport('COM4',9600);
-configureTerminator(s,'CR');
-% Set auto-angle
-writeline(s,'ANGLE A');
-readline(s);
+% Connect to the manipulator, configure, store
+scientifica_connection = serialport(scientifica_serial_port,9600); % Motion Card 1: baud rate = 9600
+configureTerminator(scientifica_connection,'CR'); % Terminator = carriage return
+writeline(scientifica_connection,'ANGLE A'); % Set auto angle
+readline(scientifica_connection); % Read feedback
+writeline(scientifica_connection,'ZERO'); % Zero manipulator
+readline(scientifica_connection); % Read feedback
+
+gui_data.scientifica_connection = scientifica_connection;
 
 % Set up timer function for updating probe position
 manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
@@ -1664,92 +1680,89 @@ end
 
 function get_scientifica_position(obj,event,probe_atlas_gui)
 
-%%% TO DO: here
-
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-writeline(s,'P');
-scientifica_position = readline(s);
-writeline(s,'ANGLE');
-scientifica_angle = readline(s);
-fprintf('%s, angle %s \n',scientifica_position,scientifica_angle);
+% Get position (Z,Y,X)
+% (allow a few attempts, if conflics with other commands)
+writeline(gui_data.scientifica_connection,'P');
+scientifica_position = str2num(readline(gui_data.scientifica_connection));
 
-    % Get given MPM probe data (0-indexed)
-    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(curr_newscale_probe-1);
+writeline(gui_data.scientifica_connection,'ANGLE');
+scientifica_elevation_angle = str2num(readline(gui_data.scientifica_connection));
 
-    % Get tip position of probe (MPM convention: -Z is down)
-    probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
+probe_tip = scientifica_position([3,2,1])'/1000;
+probe_angle = [90,scientifica_elevation_angle]; % TO DO: currently assume 90 azimuth
 
-    % Calculate top position of the probe (back up from bottom by angles)
+% (using length of recording sites, not full length of the probe from VCS)
+[x,y,z] = sph2cart( ...
+    deg2rad(90-probe_angle(1)),  ...
+    deg2rad(180+probe_angle(2)), ...
+    gui_data.probe_length);
+probe_top = probe_tip + [x; y; z];
 
-    % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
-    mpm2nte_angles = ...
-        [newscale_probe_info.Polar-double(gui_data.newscale_client.AppData.PosteriorAngle), ...
-        90-newscale_probe_info.Pitch];
+% Set probe vector
+probe_vector = [probe_top, probe_tip] ;
 
-    % (using length of recording sites, not full length of the probe from VCS)
-    [x,y,z] = sph2cart( ...
-        deg2rad(90-mpm2nte_angles(1)),  ...
-        deg2rad(180+mpm2nte_angles(2)), ...
-        gui_data.probe_length(curr_newscale_probe));
-    probe_top = probe_tip + [x; y; z];
+% Update angles
+gui_data.probe_angle{1} = probe_angle;
 
-    % Add DV offset relative to zeroing at brain surface (if applicable)
-    if isfield(gui_data,'manipulator_dv_offset') && ...
-            length(gui_data.manipulator_dv_offset) >= curr_newscale_probe
-        manipulator_dv_offset = [0;0;gui_data.manipulator_dv_offset(curr_newscale_probe)];
-    else
-        manipulator_dv_offset = zeros(3,1);
-    end
+% Change probe location
+set(gui_data.handles.probe_line(1), ...
+    'XData',probe_vector(1,:), ...
+    'YData',probe_vector(2,:), ...
+    'ZData',probe_vector(3,:));
 
-    % Set probe vector
-    probe_vector = [probe_top, probe_tip] + manipulator_dv_offset;
+% Update the probe and trajectory reference
+ml_lim = xlim(gui_data.handles.axes_atlas);
+ap_lim = ylim(gui_data.handles.axes_atlas);
+dv_lim = zlim(gui_data.handles.axes_atlas);
+max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
+[x,y,z] = sph2cart( ...
+    deg2rad(90-probe_angle(1)),  ...
+    deg2rad(180+probe_angle(2)), ...
+    -max_ref_length);
 
-    % Update angles
-    gui_data.probe_angle{curr_newscale_probe} = mpm2nte_angles;
+% Move probe reference (draw line through point and DV 0 with max length)
+probe_ref_top_ap = interp1(probe_vector(3,2)+[0,z],probe_vector(2,2)+[0,y],0,'linear','extrap');
+probe_ref_top_ml = interp1(probe_vector(3,2)+[0,z],probe_vector(1,2)+[0,x],0,'linear','extrap');
 
-    % Change probe location
-    set(gui_data.handles.probe_line(curr_newscale_probe), ...
-        'XData',probe_vector(1,:), ...
-        'YData',probe_vector(2,:), ...
-        'ZData',probe_vector(3,:));
+probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
+probe_ref_bottom = probe_ref_top + [x,y,z];
 
-    % Update the probe and trajectory reference
-    ml_lim = xlim(gui_data.handles.axes_atlas);
-    ap_lim = ylim(gui_data.handles.axes_atlas);
-    dv_lim = zlim(gui_data.handles.axes_atlas);
-    max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
-    [x,y,z] = sph2cart( ...
-        deg2rad(90-mpm2nte_angles(1)),  ...
-        deg2rad(180+mpm2nte_angles(2)), ...
-        -max_ref_length);
+probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
 
-    % Move probe reference (draw line through point and DV 0 with max length)
-    probe_ref_top_ap = interp1(probe_vector(3,2)+[0,z],probe_vector(2,2)+[0,y],0,'linear','extrap');
-    probe_ref_top_ml = interp1(probe_vector(3,2)+[0,z],probe_vector(1,2)+[0,x],0,'linear','extrap');
+set(gui_data.handles.probe_ref_line(1), ...
+    'XData',probe_ref_vector(1,:), ...
+    'YData',probe_ref_vector(2,:), ...
+    'ZData',probe_ref_vector(3,:));
 
-    probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
-    probe_ref_bottom = probe_ref_top + [x,y,z];
+% Update gui data
+guidata(probe_atlas_gui, gui_data);
 
-    probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
+% Update the slice and probe coordinates
+update_probe_coordinates(probe_atlas_gui);
 
-    set(gui_data.handles.probe_ref_line(curr_newscale_probe), ...
-        'XData',probe_ref_vector(1,:), ...
-        'YData',probe_ref_vector(2,:), ...
-        'ZData',probe_ref_vector(3,:));
-
-    % Update gui data
-    guidata(probe_atlas_gui, gui_data);
-
+% Update slice
+update_slice(probe_atlas_gui);
 
 end
 
 function zero_scientifica(h,eventdata,probe_atlas_gui)
 % Set probe tip DV at brain surface, apply DV offset
 
-writeline(s,'ZERO');
-readline(s);
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Stop the timer, give a second to finish ongoing
+stop(gui_data.manipulator_timer_fcn);
+
+% Zero manipulator
+writeline(gui_data.scientifica_connection,'ZERO'); % Zero manipulator
+readline(gui_data.scientifica_connection); % Read feedback
+
+% Re-start the timer
+start(gui_data.manipulator_timer_fcn);
 
 end
 
