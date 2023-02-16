@@ -809,14 +809,9 @@ function update_brain_scale(probe_atlas_gui,bregma_lambda_distance)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Add "rescaling" message
-set(gui_data.probe_coordinates_text,'String','RESCALING BRAIN...');
-set(gui_data.probe_coordinates_text,'Color','r');
-drawnow;
-
 % Get the sizing scale of this mouse to the reference atlas
 mouse_scale = bregma_lambda_distance/ ...
-    gui_data.bregma_lambda_distance_avg;
+    gui_data.avg_bregma_lambda_distance;
 
 % Apply scale to reference transform and set to new transform
 mouse_scale_tform = eye(4).*[repmat(mouse_scale,3,1);1];
@@ -837,12 +832,6 @@ for redraw_area = gui_data.structure_plot_idx
 end
 % - Slice
 update_slice(probe_atlas_gui);
-
-% Update probe coordinates
-update_probe_coordinates(probe_atlas_gui);
-
-% Restore text color
-set(gui_data.probe_coordinates_text,'Color','k')
 
 end
 
@@ -977,16 +966,15 @@ update_slice(probe_atlas_gui);
 end
 
 function set_bregma_lambda_distance(h,eventdata,probe_atlas_gui)
+keyboard
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
 % Input bregma-lambda distance (default is standard average)
-bregma_lambda_distance_new = ...
-    cellfun(@str2num,inputdlg('Bregma-Lambda distance (mm):','', ...
-    1,{num2str(gui_data.bregma_lambda_distance_avg)}));
+a = inputdlg('Bregma-Lambda distance (mm):','', ...
+    1,{num2str(gui_data.bregma_lambda_distance_avg)});
 
-update_brain_scale(probe_atlas_gui,bregma_lambda_distance_new);
 
 end
 
@@ -1356,8 +1344,9 @@ function connect_newscale(probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Add "connecting" message
+probe_coordinates_text_props = get(gui_data.probe_coordinates_text);
 set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
-set(gui_data.probe_coordinates_text,'Color','r')
+set(gui_data.probe_coordinates_text,'ForegroundColor','r')
 
 % Initialize MPM client
 if ~isdeployed
@@ -1450,7 +1439,7 @@ gui_data.newscale_timer_fcn = timer('TimerFcn', ...
     'TasksToExecute', inf);
 
 % Restore text color
-set(gui_data.probe_coordinates_text,'Color','k')
+set(gui_data.probe_coordinates_text,'ForegroundColor',probe_coordinates_text_props.ForegroundColor)
 
 % Store timer function and start
 % (necessary for the standalone, which deletes function on 'start')
