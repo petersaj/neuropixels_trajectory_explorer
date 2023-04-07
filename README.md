@@ -3,7 +3,7 @@
 # Neuropixels trajectory explorer
 Neuropixels trajectory explorer with the Allen CCF mouse atlas or Waxholm rat atlas.
 
-It was written in MATLAB, but there is a standalone version that does not require MATLAB or a MATLAB license.
+The explorer does not require any specific software (it was written in MATLAB, but included is a standalone version that does not require MATLAB to run).
 
 **For instructions, see the [Wiki](https://github.com/petersaj/neuropixels_trajectory_explorer/wiki)**
 
