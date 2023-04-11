@@ -27,10 +27,6 @@ end
 if ~license('test','Image_Toolbox')
     error('MATLAB image processing toolbox required (https://uk.mathworks.com/products/image.html)')
 end
-% (image processing toolbox)
-if ~license('test','Image_Toolbox')
-    error('MATLAB Image Processing toolbox required: https://uk.mathworks.com/products/image.html')
-end
 
 % Initialize gui_data structure
 gui_data = struct;
