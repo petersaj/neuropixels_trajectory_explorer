@@ -140,7 +140,7 @@ grid on;
 gui_position_px = getpixelposition(probe_atlas_gui);
 probe_coordinates_text = annotation('textbox','String','', ...
     'Units','normalized','Position',[0,0,1,1],'VerticalAlignment','top', ...
-    'FontSize',12,'FontName','Consolas');
+    'FontSize',12,'FontName','Consolas','PickableParts','none');
 
 % Set up the probe area axes
 axes_probe_areas = axes('Position',[0.90,0.01,0.03,0.95],'TickDir','in');
@@ -228,7 +228,7 @@ gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates te
 % Make 3D rotation the default state
 h = rotate3d(axes_atlas);
 h.Enable = 'on';
-h.ButtonDownFilter = @rotate_clickable;
+h.ButtonDownFilter = @rotate_clickable; % enable click-to-select during rotation
 % Update the slice whenever a rotation is completed
 h.ActionPostCallback = @update_slice;
 
@@ -1856,14 +1856,11 @@ end
 function flag = rotate_clickable(obj,event_obj)
 % If the object tag is 'rotate_clickable', then enable clicking even during
 % rotate3d
-objTag = obj.Tag;
-
 if strcmpi(obj.Tag,'rotate_clickable')
     flag = true;
 else
     flag = false;
 end
-
 end
 
 %% Load and format structure tree
