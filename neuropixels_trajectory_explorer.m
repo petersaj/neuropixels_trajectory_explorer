@@ -1399,43 +1399,30 @@ set(gui_data.probe_coordinates_text,'Color','r')
 
 % Initialize MPM client
 if ~isdeployed
-    % (being run in matlab: if MPM client not in path, find it and add to the path)
-    newscale_client_file = 'NstMpmClientAccess.dll';
-    if ~exist(newscale_client_file,'file')
-        [~,newscale_client_path] = uigetfile(newscale_client_file,sprintf('Choose MPM client file (%s)',newscale_client_file));
-        newscale_client_filename = fullfile(newscale_client_path,newscale_client_file);
-
-        if ~exist(newscale_client_filename,'file')
-            % error out if file doesn't exist
-            error('Please supply MPM client file (%s) - ',newscale_client_file)
-        else
-            % if file exists, add folder to path and save
-            addpath(newscale_client_path)
-            savepath
-        end
-    end
-
-    newscale_client_filename = which(newscale_client_file);
-
+    % (being run in matlab: dll is kept in helpers folder)
+    newscale_client_filename = fullfile( ...
+        fileparts(which('neuropixels_trajectory_explorer')), ...
+        'nte_helpers','NstMpmClientAccess.dll');
 elseif isdeployed
     % (standalone: load from saved file path, or query if not found)
-    load('nte_paths.mat');
-    newscale_client_filename = nte_paths.newscale_client_filename;
-    if ~exist(newscale_client_filename,'file')
-        % (use uigetdir_workaround: matlab-issued workaround for R2018a bug)
-        newscale_client_path = uigetdir_workaround([],'Select folder with MPM client');
-        newscale_client_filename = fullfile(newscale_client_path,'NstMpmClientAccess.dll');
-        if ~exist(newscale_client_filename,'file')
-            % If MPM client not present in specified directory, error out
-            errordlg(sprintf('MPM client not found: %s',newscale_client_filename));
-            return
-        else
-            % If MPM client present, save path for future
-            nte_paths.newscale_client_filename = newscale_client_filename;
-            nte_paths_fn = which('nte_paths.mat');
-            save(nte_paths_fn,'nte_paths');
-        end
-    end
+%     load('nte_paths.mat');
+%     newscale_client_filename = nte_paths.newscale_client_filename;
+newscale_client_filename = which('NstMpmClientAccess.dll');
+%     if ~exist(newscale_client_filename,'file')
+%         % (use uigetdir_workaround: matlab-issued workaround for R2018a bug)
+%         newscale_client_path = uigetdir_workaround([],'Select folder with MPM client');
+%         newscale_client_filename = fullfile(newscale_client_path,'NstMpmClientAccess.dll');
+%         if ~exist(newscale_client_filename,'file')
+%             % If MPM client not present in specified directory, error out
+%             errordlg(sprintf('MPM client not found: %s',newscale_client_filename));
+%             return
+%         else
+%             % If MPM client present, save path for future
+%             nte_paths.newscale_client_filename = newscale_client_filename;
+%             nte_paths_fn = which('nte_paths.mat');
+%             save(nte_paths_fn,'nte_paths');
+%         end
+%     end
 end
 
 NET.addAssembly(newscale_client_filename);
