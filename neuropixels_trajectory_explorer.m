@@ -1412,11 +1412,28 @@ NET.addAssembly(newscale_client_filename);
 import NstMpmClientAccess.*
 newscale_client = NstMpmClientAccess.NstMpmClient;
 
-% Get IP and port configuration (default is same computer, port 8080)
+% Get IP and port configuration
+% (load settings: default is same computer, port 8080)
+matlab_settings = settings;
+if ~hasGroup(matlab_settings,'neuropixels_trajectory_explorer')
+    addGroup(matlab_settings,'neuropixels_trajectory_explorer');
+    addSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_ip');
+    addSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_port');
+
+    matlab_settings.neuropixels_trajectory_explorer.newscale_ip.PersonalValue = 'localhost';
+    matlab_settings.neuropixels_trajectory_explorer.newscale_port.PersonalValue = '8080';
+end
+
 newscale_client_settings = inputdlg({'IP address (Computer running Pathfinder):', ...
-    'Port (Pathfinder: Coordinate Sys > ... > Http server) :'},'Pathfinder',1,{'localhost','8080'});
+    'Port (Pathfinder: Coordinate Sys > ... > Http server) :'},'Pathfinder',1, ...
+    {matlab_settings.neuropixels_trajectory_explorer.newscale_ip.ActiveValue, ...
+    matlab_settings.neuropixels_trajectory_explorer.newscale_port.ActiveValue});
 newscale_client.IP_Address = newscale_client_settings{1};
 newscale_client.Port = str2num(newscale_client_settings{2});
+
+% Save current settings for future sessions
+matlab_settings.neuropixels_trajectory_explorer.newscale_ip.PersonalValue = char(newscale_client.IP_Address);
+matlab_settings.neuropixels_trajectory_explorer.newscale_port.PersonalValue = num2str(newscale_client.Port);
 
 % Initial MPM query
 newscale_client.QueryMpmApplication;
