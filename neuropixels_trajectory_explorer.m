@@ -151,7 +151,12 @@ set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
 colormap(axes_probe_areas,ccf_cmap);
 clim([1,size(ccf_cmap,1)]);
-axes_probe_areas_probelimits = yline(axes_probe_areas,[0,0],'linewidth',5,'color','b');
+axes_probe_areas_probelimits = ...
+    rectangle(axes_probe_areas, ...
+    'position',[min(xlim(axes_probe_areas)),0,diff(xlim(axes_probe_areas)),1], ...
+    'edgecolor','b','linewidth',5);
+
+
 
 %% Create menu/buttons
 
@@ -192,7 +197,7 @@ manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
 uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
 uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@manipulator_scientifica,probe_atlas_gui});
 
-saveload_menu = uimenu(probe_atlas_gui,'Text','Save/load');
+saveload_menu = uimenu(probe_atlas_gui,'Text','Save/Load');
 uimenu(saveload_menu,'Text','Save positions','MenuSelectedFcn',{@save_probe_positions,probe_atlas_gui});
 uimenu(saveload_menu,'Text','Load positions','MenuSelectedFcn',{@load_probe_positions,probe_atlas_gui});
 
@@ -825,8 +830,8 @@ switch gui_data.display_areas
             'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
 
         % Update lines showing relative probe location
-        [gui_data.handles.axes_probe_areas_probelimits.Value] = ...
-            deal(0,gui_data.probe_length(gui_data.selected_probe));
+        gui_data.handles.axes_probe_areas_probelimits.Position([2,4]) = ...
+            [0,gui_data.probe_length(gui_data.selected_probe)];
 
         title(gui_data.handles.axes_probe_areas,'Probe areas');
 
@@ -849,8 +854,8 @@ switch gui_data.display_areas
             'YLim',prctile(trajectory_depths(plot_trajectory_idx),[0,100]))
 
         % Update lines showing relative probe location
-        [gui_data.handles.axes_probe_areas_probelimits.Value] = ...
-            deal(probe_depths(1),probe_depths(2));
+        gui_data.handles.axes_probe_areas_probelimits.Position([2,4]) = ...
+            [probe_depths(2)-diff(probe_depths),diff(probe_depths)];
 
         title(gui_data.handles.axes_probe_areas,'Trajectory areas');
 
