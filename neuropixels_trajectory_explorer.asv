@@ -1419,6 +1419,8 @@ function load_probe_positions(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
+keyboard
+
 % Choose file and load
 [probe_file,probe_path] = uigetfile('probe_positions.mat','Choose probe positions to load...');
 probe_filename = fullfile(probe_path,probe_file);
@@ -1435,7 +1437,7 @@ probe_positions_ccf_cat = ...
     probe_positions_ccf_cat(1,:,:), ...
     probe_positions_ccf_cat(2,:,:));
 
-probe_vector = [probe_ml_bregma;probe_ap_bregma;probe_dv_bregma];
+probe_vector = 
 
 % Set number of probes equal to loaded probe number
 load_n_probes = length(probe_positions_ccf);
@@ -1457,20 +1459,20 @@ for curr_probe = 1:load_n_probes
 
     % Set probe location
     set(gui_data.handles.probe_line(curr_probe), ...
-        'XData',probe_vector(1,:,curr_probe), ...
-        'YData',probe_vector(2,:,curr_probe), ...
-        'ZData',probe_vector(3,:,curr_probe));
+        'XData',probe_ml_bregma(curr_probe,:), ...
+        'YData',probe_ap_bregma(curr_probe,:), ...
+        'ZData',probe_dv_bregma(curr_probe,:));
 
     % Get probe angles
     [probe_azimuth_sph,probe_elevation_sph] = cart2sph( ...
-        diff(probe_vector(2,:,curr_probe)), ...
-        diff(probe_vector(1,:,curr_probe)), ...
-        diff(probe_vector(3,:,curr_probe)));
+        diff(probe_ml_bregma(curr_probe,:)), ...
+        diff(probe_ap_bregma(curr_probe,:)), ...
+        diff(probe_dv_bregma(curr_probe,:)));
     probe_angle = rad2deg([probe_azimuth_sph,probe_elevation_sph]) + ...
         [360*(probe_azimuth_sph<0),0];
     gui_data.probe_angle{curr_probe} = probe_angle;
 
-    % Update trajectory reference (draw line through point and DV 0 with max length)
+    % Update trajectory reference
     ml_lim = xlim(gui_data.handles.axes_atlas);
     ap_lim = ylim(gui_data.handles.axes_atlas);
     dv_lim = zlim(gui_data.handles.axes_atlas);
@@ -1480,13 +1482,14 @@ for curr_probe = 1:load_n_probes
         deg2rad(180+probe_angle(2)), ...
         -max_ref_length);
 
-    probe_ref_top_ap = interp1(probe_vector(3,2,curr_probe)+[0,z], ...
-        probe_vector(2,2,curr_probe)+[0,y],0,'linear','extrap');
-    probe_ref_top_ml = interp1(probe_vector(3,2,curr_probe)+[0,z], ...
-        probe_vector(1,2,curr_probe)+[0,x],0,'linear','extrap');
+    
+    % Move probe reference (draw line through point and DV 0 with max length)
+    probe_ref_top_ap = interp1(probe_vector(3,2)+[0,z],probe_vector(2,2)+[0,y],0,'linear','extrap');
+    probe_ref_top_ml = interp1(probe_vector(3,2)+[0,z],probe_vector(1,2)+[0,x],0,'linear','extrap');
 
     probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
     probe_ref_bottom = probe_ref_top + [x,y,z];
+
     probe_ref_vector = [probe_ref_top;probe_ref_bottom]';
 
     set(gui_data.handles.probe_ref_line(curr_probe), ...
@@ -1494,14 +1497,21 @@ for curr_probe = 1:load_n_probes
         'YData',probe_ref_vector(2,:), ...
         'ZData',probe_ref_vector(3,:));
 
+    % Update gui data
+    guidata(probe_atlas_gui, gui_data);
+
+    % Get bregma-lambda distance (from Probe A), re-scale atlas if changed
+    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(0);
+    newscale_bregma_lambda_distance = ...
+        norm([newscale_probe_info.Bregma_X,newscale_probe_info.Bregma_Y,newscale_probe_info.Bregma_Z]- ...
+        [newscale_probe_info.Lambda_X,newscale_probe_info.Lambda_Y,newscale_probe_info.Lambda_Z]);
+    if newscale_bregma_lambda_distance ~= gui_data.bregma_lambda_distance_curr
+        update_brain_scale(probe_atlas_gui,newscale_bregma_lambda_distance);
+    end
+
 end
 
-% Update coordinates/slice
-update_probe_coordinates(probe_atlas_gui);
-update_slice(probe_atlas_gui);
 
-% Update gui data
-guidata(probe_atlas_gui, gui_data);
 
 end
 
