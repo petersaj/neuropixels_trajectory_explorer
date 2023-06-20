@@ -124,7 +124,7 @@ axes_atlas = axes('Position',[-0.12,0.05,1,0.9],'ZDir','reverse');
 axis(axes_atlas,'vis3d','equal','off','manual'); hold(axes_atlas,'on');
 
 view([30,150]);
-caxis([0 300]);
+clim([0 300]);
 xlim([-5,5]);ylim([-8,6]);zlim([-1,6.5]);
 grid_spacing = 0.5;
 set(gca,'XTick',floor(min(xlim)):grid_spacing:ceil(max(xlim)));
@@ -150,8 +150,8 @@ probe_areas_plot = image(0);
 set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
 colormap(axes_probe_areas,ccf_cmap);
-caxis([1,size(ccf_cmap,1)]);
-axes_probe_areas_probelimits = yline(axes_probe_areas,[0,0],'linewidth',3,'color','b');
+clim([1,size(ccf_cmap,1)]);
+axes_probe_areas_probelimits = yline(axes_probe_areas,[0,0],'linewidth',5,'color','b');
 
 %% Create menu/buttons
 
@@ -463,7 +463,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
             curr_slice(curr_slice < 20) = NaN; % threshold values
 
             colormap(gui_data.handles.axes_atlas,'gray');
-            caxis(gui_data.handles.axes_atlas,[0,255]);
+            clim(gui_data.handles.axes_atlas,[0,255]);
 
         case 'av'
             curr_slice = nan(size(plane_ap_ccf));
@@ -471,7 +471,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
             curr_slice(curr_slice <= 1) = NaN; % threshold values
 
             colormap(gui_data.handles.axes_atlas,gui_data.cmap);
-            caxis(gui_data.handles.axes_atlas,[1,size(gui_data.cmap,1)]);
+            clim(gui_data.handles.axes_atlas,[1,size(gui_data.cmap,1)]);
     end
 
     % Update the slice display
@@ -1712,6 +1712,13 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     % Get tip position of probe (MPM convention: -Z is down)
     probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
 
+    % Check if any changes to probe (if not, skip)
+    curr_probe_position = cell2mat(get(gui_data.handles.probe_line(curr_newscale_probe), ...
+        {'XData','YData','ZData'})');
+    if all(probe_tip == curr_probe_position(:,2))
+        continue
+    end
+
     % Calculate top position of the probe (back up from bottom by angles)
 
     % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
@@ -1782,17 +1789,17 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
         update_brain_scale(probe_atlas_gui,newscale_bregma_lambda_distance);
     end
 
+    % Select MPM-selected probe (0-indexed, unselected = -1 so force >1)
+    newscale_selected_probe = max(gui_data.newscale_client.AppData.SelectedProbe+1,1);
+    select_probe(gui_data.handles.probe_line(newscale_selected_probe),[],probe_atlas_gui)
+
+    % Update the slice and probe coordinates
+    update_probe_coordinates(probe_atlas_gui);
+
+    % Update slice
+    update_slice(probe_atlas_gui);
+
 end
-
-% Select MPM-selected probe (0-indexed, unselected = -1 so force >1)
-newscale_selected_probe = max(gui_data.newscale_client.AppData.SelectedProbe+1,1);
-select_probe(gui_data.handles.probe_line(newscale_selected_probe),[],probe_atlas_gui)
-
-% Update the slice and probe coordinates
-update_probe_coordinates(probe_atlas_gui);
-
-% Update slice
-update_slice(probe_atlas_gui);
 
 end
 
