@@ -151,6 +151,7 @@ set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
 colormap(axes_probe_areas,ccf_cmap);
 caxis([1,size(ccf_cmap,1)]);
+axes_probe_areas_probelimits = yline(axes_probe_areas,[0,0],'linewidth',3,'color','b');
 
 %% Create menu/buttons
 
@@ -171,17 +172,21 @@ uimenu(mesh_areas_menu,'Text','Hierarchy areas','MenuSelectedFcn',{@add_area_hie
 uimenu(mesh_areas_menu,'Text','Remove areas','MenuSelectedFcn',{@remove_area,probe_atlas_gui});
 
 display_menu = uimenu(probe_atlas_gui,'Text','Display');
+name_menu = uimenu(display_menu,'Text','Trajectory areas');
+uimenu(name_menu,'Text','Probe position','MenuSelectedFcn',{@set_areas_probe,probe_atlas_gui},'Checked','on')
+uimenu(name_menu,'Text','Full trajectory','MenuSelectedFcn',{@set_areas_trajectory,probe_atlas_gui},'Checked','off')
 name_menu = uimenu(display_menu,'Text','Region names');
 uimenu(name_menu,'Text','Acronym','MenuSelectedFcn',{@set_name_acronym,probe_atlas_gui},'Checked','on')
 uimenu(name_menu,'Text','Full','MenuSelectedFcn',{@set_name_full,probe_atlas_gui})
 slice_menu = uimenu(display_menu,'Text','Slice');
 uimenu(slice_menu,'Text','Anatomical','MenuSelectedFcn',{@visibility_tv_slice,probe_atlas_gui},'Checked','off')
 uimenu(slice_menu,'Text','Annotated','MenuSelectedFcn',{@visibility_av_slice,probe_atlas_gui})
-uimenu(display_menu,'Text','Brain outline','MenuSelectedFcn',{@visibility_brain_outline,probe_atlas_gui},'Checked','on');
-uimenu(display_menu,'Text','Grid','MenuSelectedFcn',{@visibility_grid,probe_atlas_gui});
-uimenu(display_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atlas_gui},'Checked','on');
-uimenu(display_menu,'Text','3D areas','MenuSelectedFcn',{@visibility_3d_areas,probe_atlas_gui},'Checked','on');
-uimenu(display_menu,'Text','Dark mode','MenuSelectedFcn',{@visibility_darkmode,probe_atlas_gui});
+object_menu = uimenu(display_menu,'Text','Objects');
+uimenu(object_menu,'Text','Brain outline','MenuSelectedFcn',{@visibility_brain_outline,probe_atlas_gui},'Checked','on');
+uimenu(object_menu,'Text','Grid','MenuSelectedFcn',{@visibility_grid,probe_atlas_gui});
+uimenu(object_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atlas_gui},'Checked','on');
+uimenu(object_menu,'Text','3D areas','MenuSelectedFcn',{@visibility_3d_areas,probe_atlas_gui},'Checked','on');
+uimenu(object_menu,'Text','Dark mode','MenuSelectedFcn',{@visibility_darkmode,probe_atlas_gui});
 
 manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
 uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
@@ -221,6 +226,7 @@ gui_data.structure_plot_idx = []; % Plotted structures
 gui_data.handles.structure_patch = []; % Plotted structures
 gui_data.handles.axes_atlas = axes_atlas; % Axes with 3D atlas
 gui_data.handles.axes_probe_areas = axes_probe_areas; % Axes with probe areas
+gui_data.handles.axes_probe_areas_probelimits = axes_probe_areas_probelimits; % Probe location on area plot
 gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe regions
 gui_data.handles.slice_plot = surface(axes_atlas,'EdgeColor','none','Visible','off'); % Slice on 3D atlas
 gui_data.handles.slice_volume = 'tv'; % The volume shown in the slice
@@ -732,6 +738,16 @@ trajectory_brain_intersect = ...
     trajectory_ap_coords_bregma(trajectory_brain_idx), ...
     trajectory_dv_coords_bregma(trajectory_brain_idx)]';
 
+trajectory_depths = pdist2(trajectory_brain_intersect',...
+    [trajectory_ml_coords_bregma(trajectory_coords_ccf_inbounds); ...
+    trajectory_ap_coords_bregma(trajectory_coords_ccf_inbounds); ...
+    trajectory_dv_coords_bregma(trajectory_coords_ccf_inbounds)]');
+
+trajectory_area_boundaries = intersect(unique([find(trajectory_areas ~= 1,1,'first'); ...
+    find(diff(trajectory_areas) ~= 0);find(trajectory_areas ~= 1,1,'last')]),find(trajectory_areas ~= 1));
+trajectory_area_centers_idx = round(trajectory_area_boundaries(1:end-1) + diff(trajectory_area_boundaries)/2);
+trajectory_area_centers = trajectory_depths(trajectory_area_centers_idx);
+
 % (if the probe doesn't intersect the brain, don't update)
 if isempty(trajectory_brain_intersect)
     return
@@ -759,12 +775,14 @@ probe_area_centers = probe_coords_depth(probe_area_centers_idx);
 if ~isfield(gui_data,'display_region_name')
     gui_data.display_region_name = 'acronym';
 end
+trajectory_area_labels = gui_data.st.(gui_data.display_region_name)(trajectory_areas(trajectory_area_centers_idx));
 probe_area_labels = gui_data.st.(gui_data.display_region_name)(probe_areas(probe_area_centers_idx));
 
 % Get coordinate from bregma and probe-axis depth from surface
 % (round to nearest 10 microns)
 probe_bregma_coordinate = trajectory_brain_intersect;
-probe_depth = norm(trajectory_brain_intersect - probe_vector(:,2));
+probe_depths = pdist2(trajectory_brain_intersect',probe_vector').* ...
+    sign(probe_vector(3,:)-trajectory_brain_intersect(3));
 
 % Update the text
 % (manipulator angles)
@@ -773,7 +791,7 @@ probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth, % .0f%c elevation'
     gui_data.probe_angle{gui_data.selected_probe}(2),char(176));
 % (probe insertion point and depth)
 probe_insertion_text = sprintf('Probe insertion: % .2f AP, % .2f ML, % .2f depth', ...
-    probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_depth);
+    probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_depths(2));
 % (probe start/endpoints)
 recording_startpoint_text = sprintf('Recording top:   % .2f AP, % .2f ML, % .2f DV', ...
     probe_vector([2,1,3],1));
@@ -787,17 +805,56 @@ probe_text = {probe_angle_text,probe_insertion_text, ...
     recording_startpoint_text,recording_endpoint_text,bregma_lambda_text};
 set(gui_data.probe_coordinates_text,'String',probe_text);
 
-% Update the probe areas
-yyaxis(gui_data.handles.axes_probe_areas,'right');
-set(gui_data.handles.axes_probe_areas, ...
-    'YTick',[0:0.5:gui_data.probe_length(gui_data.selected_probe)], ...
-    'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
+% Update the areas (probe or trajectory, depending on selected)
+if ~isfield(gui_data,'display_areas')
+    gui_data.display_areas = 'probe';
+end
+switch gui_data.display_areas
 
-yyaxis(gui_data.handles.axes_probe_areas,'left');
-set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas);
-set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers, ...
-    'YTickLabels',probe_area_labels, ...
-    'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
+    case 'probe'
+        % Display areas in current probe position
+        yyaxis(gui_data.handles.axes_probe_areas,'right');
+        set(gui_data.handles.axes_probe_areas, ...
+            'YTick',[0:0.5:gui_data.probe_length(gui_data.selected_probe)], ...
+            'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
+
+        yyaxis(gui_data.handles.axes_probe_areas,'left');
+        set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas);
+        set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers, ...
+            'YTickLabels',probe_area_labels, ...
+            'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
+
+        % Update lines showing relative probe location
+        [gui_data.handles.axes_probe_areas_probelimits.Value] = ...
+            deal(0,gui_data.probe_length(gui_data.selected_probe));
+
+        title(gui_data.handles.axes_probe_areas,'Probe areas');
+
+    case 'trajectory'
+        % Display areas along whole trajectory
+        plot_trajectory_idx = find(trajectory_areas~=1,1,'first'):find(trajectory_areas~=1,1,'last');
+
+        yyaxis(gui_data.handles.axes_probe_areas,'right');
+        set(gui_data.handles.axes_probe_areas, ...
+            'YTick',trajectory_depths(plot_trajectory_idx(1)):0.5: ...
+            trajectory_depths(plot_trajectory_idx(end)), ...
+            'YLim',prctile(trajectory_depths(plot_trajectory_idx),[0,100]));
+
+        yyaxis(gui_data.handles.axes_probe_areas,'left');
+        set(gui_data.handles.probe_areas_plot, ...
+            'YData',trajectory_depths(plot_trajectory_idx), ...
+            'CData',trajectory_areas(plot_trajectory_idx));
+        set(gui_data.handles.axes_probe_areas,'YTick',trajectory_area_centers, ...
+            'YTickLabels',trajectory_area_labels, ...
+            'YLim',prctile(trajectory_depths(plot_trajectory_idx),[0,100]))
+
+        % Update lines showing relative probe location
+        [gui_data.handles.axes_probe_areas_probelimits.Value] = ...
+            deal(probe_depths(1),probe_depths(2));
+
+        title(gui_data.handles.axes_probe_areas,'Trajectory areas');
+
+end
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -1131,6 +1188,40 @@ end
 
 % Upload gui_data
 guidata(probe_atlas_gui,gui_data);
+end
+
+function set_areas_probe(h,eventdata,probe_atlas_gui)
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Set name convention and check menu
+h.Checked = 'on';
+gui_data.display_areas = 'probe';
+
+% Uncheck other options (mutually exclusive menu)
+alt_menu_options = get(h.Parent,'Children');
+set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
+
+% Update gui_data and area names
+guidata(probe_atlas_gui, gui_data);
+update_probe_coordinates(probe_atlas_gui);
+end
+
+function set_areas_trajectory(h,eventdata,probe_atlas_gui)
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Set name convention and check menu
+h.Checked = 'on';
+gui_data.display_areas = 'trajectory';
+
+% Uncheck other options (mutually exclusive menu)
+alt_menu_options = get(h.Parent,'Children');
+set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
+
+% Update gui_data and area names
+guidata(probe_atlas_gui, gui_data);
+update_probe_coordinates(probe_atlas_gui);
 end
 
 function set_name_acronym(h,eventdata,probe_atlas_gui)
