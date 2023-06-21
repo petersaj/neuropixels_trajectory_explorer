@@ -855,7 +855,7 @@ switch gui_data.display_areas
 
         % Update lines showing relative probe location
         gui_data.handles.axes_probe_areas_probelimits.Position([2,4]) = ...
-            [probe_depths(2),diff(probe_depths)];
+            [probe_depths(2)-diff(probe_depths),diff(probe_depths)];
 
         title(gui_data.handles.axes_probe_areas,'Trajectory areas');
 
