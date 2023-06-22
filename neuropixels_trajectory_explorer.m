@@ -750,6 +750,11 @@ trajectory_brain_intersect = ...
     trajectory_ap_coords_bregma(trajectory_brain_idx), ...
     trajectory_dv_coords_bregma(trajectory_brain_idx)]';
 
+% (if the probe doesn't intersect the brain, don't update)
+if isempty(trajectory_brain_intersect)
+    return
+end
+
 trajectory_depths = pdist2(trajectory_brain_intersect',...
     [trajectory_ml_coords_bregma(trajectory_coords_ccf_inbounds); ...
     trajectory_ap_coords_bregma(trajectory_coords_ccf_inbounds); ...
@@ -759,11 +764,6 @@ trajectory_area_boundaries = intersect(unique([find(trajectory_areas ~= 1,1,'fir
     find(diff(trajectory_areas) ~= 0);find(trajectory_areas ~= 1,1,'last')]),find(trajectory_areas ~= 1));
 trajectory_area_centers_idx = round(trajectory_area_boundaries(1:end-1) + diff(trajectory_area_boundaries)/2);
 trajectory_area_centers = trajectory_depths(trajectory_area_centers_idx);
-
-% (if the probe doesn't intersect the brain, don't update)
-if isempty(trajectory_brain_intersect)
-    return
-end
 
 probe_coords_ccf = ...
     round([probe_ap_coords_ccf;probe_dv_coords_ccf;probe_ml_coords_ccf]);
