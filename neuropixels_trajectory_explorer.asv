@@ -750,11 +750,6 @@ trajectory_brain_intersect = ...
     trajectory_ap_coords_bregma(trajectory_brain_idx), ...
     trajectory_dv_coords_bregma(trajectory_brain_idx)]';
 
-% (if the probe doesn't intersect the brain, don't update)
-if isempty(trajectory_brain_intersect)
-    return
-end
-
 trajectory_depths = pdist2(trajectory_brain_intersect',...
     [trajectory_ml_coords_bregma(trajectory_coords_ccf_inbounds); ...
     trajectory_ap_coords_bregma(trajectory_coords_ccf_inbounds); ...
@@ -764,6 +759,11 @@ trajectory_area_boundaries = intersect(unique([find(trajectory_areas ~= 1,1,'fir
     find(diff(trajectory_areas) ~= 0);find(trajectory_areas ~= 1,1,'last')]),find(trajectory_areas ~= 1));
 trajectory_area_centers_idx = round(trajectory_area_boundaries(1:end-1) + diff(trajectory_area_boundaries)/2);
 trajectory_area_centers = trajectory_depths(trajectory_area_centers_idx);
+
+% (if the probe doesn't intersect the brain, don't update)
+if isempty(trajectory_brain_intersect)
+    return
+end
 
 probe_coords_ccf = ...
     round([probe_ap_coords_ccf;probe_dv_coords_ccf;probe_ml_coords_ccf]);
@@ -1498,7 +1498,7 @@ function save_probe_positions(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-n_probes = length(gui_data.handles.probe_line);
+n_probes = kength(gui_data.handles.probe_line)
 
 % Get CCF coordinates of the top/bottom of the probe
 [probe_ml_ccf,probe_ap_ccf,probe_dv_ccf] = ...
@@ -1507,51 +1507,55 @@ n_probes = length(gui_data.handles.probe_line);
     vertcat(gui_data.handles.probe_line.YData), ...
     vertcat(gui_data.handles.probe_line.ZData));
 
+% Get areas in 10um increments along probe
+
+probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe),{'XData','YData','ZData'})');
+
+probe_n_coords = round(sqrt(sum(diff(probe_vector,[],2).^2))*100); % 10um resolution along active sites
+probe_coords_depth = linspace(0,gui_data.probe_length(gui_data.selected_probe),probe_n_coords);
+
+[probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
+    linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
+    linspace(probe_vector(2,1),probe_vector(2,2),probe_n_coords), ...
+    linspace(probe_vector(3,1),probe_vector(3,2),probe_n_coords));
+
+[probe_ml_coords_ccf,probe_ap_coords_ccf,probe_dv_coords_ccf] = ...
+    transformPointsInverse(gui_data.ccf_bregma_tform, ...
+    probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma);
+
+probe_coords_ccf = ...
+    round([probe_ap_coords_ccf;probe_dv_coords_ccf;probe_ml_coords_ccf]);
+probe_coords_ccf_inbounds = all(probe_coords_ccf > 0 & ...
+    probe_coords_ccf <= size(gui_data.av)',1);
+
+probe_idx = ...
+    sub2ind(size(gui_data.av), ...
+    round(probe_ap_coords_ccf(probe_coords_ccf_inbounds)), ...
+    round(probe_dv_coords_ccf(probe_coords_ccf_inbounds)), ...
+    round(probe_ml_coords_ccf(probe_coords_ccf_inbounds)));
+
+probe_areas_idx = ones(probe_n_coords,1); % (out of CCF = 1: non-brain)
+probe_areas_idx(probe_coords_ccf_inbounds) = gui_data.av(probe_idx);
+
+probe_areas = gui_data.st(probe_areas_idx,:);
+
+
+%%%%%%
+
+
+
+
+
+
 % Package into CCF coordinates by probe ([AP,DV,ML])
 probe_positions_ccf = squeeze(mat2cell(permute(cat(3, ...
     probe_ap_ccf,probe_dv_ccf,probe_ml_ccf),[3,2,1]), ...
-    3,2,ones(n_probes,1)));
-
-% Get areas in 10um increments along probe
-probe_areas = cell(n_probes,1);
-for curr_probe = 1:n_probes
-
-    probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe),{'XData','YData','ZData'})');
-
-    probe_n_coords = round(sqrt(sum(diff(probe_vector,[],2).^2))*100); % 10um resolution along active sites
-    probe_coords_depth = linspace(0,gui_data.probe_length(gui_data.selected_probe),probe_n_coords);
-
-    [probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
-        linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
-        linspace(probe_vector(2,1),probe_vector(2,2),probe_n_coords), ...
-        linspace(probe_vector(3,1),probe_vector(3,2),probe_n_coords));
-
-    [probe_ml_coords_ccf,probe_ap_coords_ccf,probe_dv_coords_ccf] = ...
-        transformPointsInverse(gui_data.ccf_bregma_tform, ...
-        probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma);
-
-    probe_coords_ccf = ...
-        round([probe_ap_coords_ccf;probe_dv_coords_ccf;probe_ml_coords_ccf]);
-    probe_coords_ccf_inbounds = all(probe_coords_ccf > 0 & ...
-        probe_coords_ccf <= size(gui_data.av)',1);
-
-    probe_idx = ...
-        sub2ind(size(gui_data.av), ...
-        round(probe_ap_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_dv_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_ml_coords_ccf(probe_coords_ccf_inbounds)));
-
-    probe_areas_idx = ones(probe_n_coords,1); % (out of CCF = 1: non-brain)
-    probe_areas_idx(probe_coords_ccf_inbounds) = gui_data.av(probe_idx);
-
-    probe_areas{curr_probe} = gui_data.st(probe_areas_idx,:);
-
-end
+    3,2,ones(size(gui_data.handles.probe_line))));
 
 % Choose file location and save
 [save_file,save_path] = uiputfile('probe_positions.mat','Save probe positions as...');
 save_filename = fullfile(save_path,save_file);
-save(save_filename,'probe_positions_ccf','probe_areas');
+save(save_filename,'probe_positions_ccf');
 
 end
 
