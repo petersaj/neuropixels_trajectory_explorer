@@ -193,9 +193,16 @@ uimenu(object_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atl
 uimenu(object_menu,'Text','3D areas','MenuSelectedFcn',{@visibility_3d_areas,probe_atlas_gui},'Checked','on');
 uimenu(object_menu,'Text','Dark mode','MenuSelectedFcn',{@visibility_darkmode,probe_atlas_gui});
 
-manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
-uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
-uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@manipulator_scientifica,probe_atlas_gui});
+% manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
+% uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
+% uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@manipulator_scientifica,probe_atlas_gui});
+connect_menu = uimenu(probe_atlas_gui,'Text','Connect');
+manipulator_menu = uimenu(connect_menu,'Text','Manipulator');
+uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@connect_newscale,probe_atlas_gui});
+uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@connect_scientifica,probe_atlas_gui});
+record_menu = uimenu(connect_menu,'Text','Recording');
+uimenu(record_menu,'Text','OpenEphys','MenuSelectedFcn',{@connect_openephys,probe_atlas_gui});
+uimenu(record_menu,'Text','SpikeGLX','MenuSelectedFcn',{@connect_spikeglx,probe_atlas_gui});
 
 saveload_menu = uimenu(probe_atlas_gui,'Text','Save/Load');
 uimenu(saveload_menu,'Text','Save positions','MenuSelectedFcn',{@save_probe_positions,probe_atlas_gui});
@@ -868,6 +875,15 @@ switch gui_data.display_areas
 
 end
 
+%%%%%% IN PROGRESS: send open ephys coordinates here
+
+probe_area_hexcolors = ...
+    gui_data.st.color_hex_triplet(probe_areas(probe_area_centers_idx));
+
+send_openephys_areas(probe_area_boundaries,probe_area_labels,probe_area_hexcolors);
+
+%%%%%%%%%%%%%%%%%%%%
+
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
 
@@ -1413,7 +1429,7 @@ h.Checked = new_visibility;
 guidata(probe_atlas_gui,gui_data);
 end
 
-function manipulator_newscale(h,eventdata,probe_atlas_gui)
+function connect_newscale(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1436,7 +1452,7 @@ switch new_check
         guidata(probe_atlas_gui, gui_data);
 
         % Connect to New Scale MPM Pathfinder software
-        connect_newscale(probe_atlas_gui)
+        connect_newscale_start(probe_atlas_gui)
 
     case 'off'
         % Stop and delete timer function
@@ -1452,7 +1468,7 @@ end
 
 end
 
-function manipulator_scientifica(h,eventdata,probe_atlas_gui)
+function connect_scientifica(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1475,7 +1491,7 @@ switch new_check
         guidata(probe_atlas_gui, gui_data);
 
         % Connect to New Scale MPM Pathfinder software
-        connect_scientifica(probe_atlas_gui)
+        connect_scientifica_start(probe_atlas_gui)
 
     case 'off'
         % Stop and delete timer function
@@ -1489,6 +1505,31 @@ switch new_check
         delete(gui_data.scientifica_connection)
         % Remove manipulator buttons
         delete(gui_data.handles.zero_manipulator_button);
+end
+
+end
+
+function connect_openephys(h,eventdata,probe_atlas_gui)
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
+
+switch new_check
+    case 'on'
+
+        %%%%%%%%%%%% IN PROGRESS
+
+        % 1) confirm open ephys running before checking on? 
+
+        % Check Open Ephys status
+        openephys_status = webread('http://localhost:37497/api/status');
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%
+
 end
 
 end
@@ -1649,7 +1690,7 @@ end
 
 %% Manipulator interfacing
 
-function connect_newscale(probe_atlas_gui)
+function connect_newscale_start(probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1888,7 +1929,7 @@ guidata(probe_atlas_gui, gui_data);
 
 end
 
-function connect_scientifica(probe_atlas_gui)
+function connect_scientifica_start(probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -2016,6 +2057,41 @@ readline(gui_data.scientifica_connection); % Read feedback
 start(gui_data.manipulator_timer_fcn);
 
 end
+
+%% Recording interfacing
+
+function send_openephys_areas(probe_area_boundaries,probe_area_labels,probe_area_hexcolors)
+
+%%%%%% IN PROGRESS
+
+% Josh email: 
+%
+% <probe_name>;<start_index_1>-<end_index_1>,<region_ID_1>,<hex_color_1>;<start_index_2>-<end_index_2>,...
+% 
+% Example:
+% ProbeA;0-69,PT,FF909F;70-97,PVT,FF909F;98-161,-,000000;162-173,-,000000,174-185,SF,90CBED;...
+% 
+% The "start_index" / "end_index" are in the indices of the electrodes in a
+% given region, ideally going all the way up the probe. The Probe Viewer
+% will then display a subset depending on which electrodes are selected.
+
+% (Recording has ch1 tip - ch384 top)
+probe_area_boundaries_site = (384+1) - probe_area_boundaries;
+[~,openephys_sort_idx] = sort(probe_area_boundaries_site(2:end));
+
+openephys_send_txt = ['ProbeA;',cell2mat(arrayfun(@(x) sprintf('%d-%d,%s,%s;', ...
+    probe_area_boundaries_site(x+1),probe_area_boundaries_site(x)-1,probe_area_labels{x}, ...
+    probe_area_hexcolors{x}),openephys_sort_idx,'uni',false)')];
+
+url = 'http://localhost:37497/api/processors/103/config';
+openephys_send_status = webwrite(url, struct('text',openephys_send_txt), ...
+      weboptions('RequestMethod','put','MediaType','application/json'));
+
+
+
+
+end
+
 
 
 %% General functions
