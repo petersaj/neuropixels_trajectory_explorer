@@ -2057,9 +2057,11 @@ switch new_check
 
         % Confirm open ephys is open on that IP (port always 37497)
         try
-            openephys_status = webread(sprintf('http://localhost:%d/api/status',openephys_port));
+            openephys_status = webread(sprintf('http://%s:%d/api/status', ...
+                openephys_ip{1},openephys_port));
         catch me
-            errordlg(sprintf('Open Ephys not accessible on IP: %s',openephys_ip{1}),'Open Ephys');
+            errordlg(sprintf('Open Ephys not accessible on %s:%d', ...
+                openephys_ip{1},openephys_port),'Open Ephys');
         end
 
         % Set Open Ephys IP address for sending
@@ -2184,7 +2186,8 @@ switch gui_data.recording_send.software
 
         % Send areas to Open Ephys
         if any(probe_viewer_idx)
-            openephys_url = sprintf('http://localhost:%d/api/processors/%d/config', ...
+            openephys_url = sprintf('http://%s:%d/api/processors/%d/config', ...
+                gui_data.recording_send.ip, ...
                 gui_data.recording_send.port, ...
                 openephys_processors.processors(probe_viewer_idx).id);
             openephys_send_status = webwrite(openephys_url, struct('text',areas_send_txt), ...
