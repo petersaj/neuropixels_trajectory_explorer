@@ -2078,6 +2078,9 @@ end
 % Update gui data
 guidata(probe_atlas_gui, gui_data);
 
+% Send probe coordinates
+update_probe_coordinates(probe_atlas_gui);
+
 end
 
 function connect_spikeglx(h,eventdata,probe_atlas_gui)
@@ -2139,6 +2142,9 @@ end
 
 % Update gui data
 guidata(probe_atlas_gui, gui_data);
+
+% Send probe coordinates
+update_probe_coordinates(probe_atlas_gui);
 
 end
 
