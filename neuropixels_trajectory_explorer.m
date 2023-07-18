@@ -149,8 +149,6 @@ yyaxis(axes_probe_areas,'left');
 probe_areas_plot = image(0);
 set(axes_probe_areas,'XTick','','YColor','k','YDir','reverse');
 title(axes_probe_areas,'Probe areas');
-colormap(axes_probe_areas,ccf_cmap);
-clim([1,size(ccf_cmap,1)]);
 axes_probe_areas_probelimits = ...
     rectangle(axes_probe_areas, ...
     'position',[min(xlim(axes_probe_areas)),0,diff(xlim(axes_probe_areas)),1], ...
@@ -797,6 +795,17 @@ end
 trajectory_area_labels = gui_data.st.(gui_data.display_region_name)(trajectory_areas(trajectory_area_centers_idx));
 probe_area_labels = gui_data.st.(gui_data.display_region_name)(probe_areas(probe_area_centers_idx));
 
+% Get colors for all areas (probe and trajectory)
+probe_area_hexcolors = gui_data.st.color_hex_triplet(probe_areas);
+probe_area_rgbcolors = permute(cell2mat(cellfun(@(x) ...
+    hex2dec({x(1:2),x(3:4),x(5:6)})'./255, ...
+    probe_area_hexcolors,'uni',false)),[1,3,2]);
+
+trajectory_area_hexcolors = gui_data.st.color_hex_triplet(trajectory_areas);
+trajectory_area_rgbcolors = permute(cell2mat(cellfun(@(x) ...
+    hex2dec({x(1:2),x(3:4),x(5:6)})'./255, ...
+    trajectory_area_hexcolors,'uni',false)),[1,3,2]);
+
 % Get coordinate from bregma and probe-axis depth from surface
 % (round to nearest 10 microns)
 probe_bregma_coordinate = trajectory_brain_intersect;
@@ -838,7 +847,8 @@ switch gui_data.display_areas
             'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
 
         yyaxis(gui_data.handles.axes_probe_areas,'left');
-        set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth,'CData',probe_areas);
+        set(gui_data.handles.probe_areas_plot,'YData',probe_coords_depth, ...
+            'CData',probe_area_rgbcolors);
         set(gui_data.handles.axes_probe_areas,'YTick',probe_area_centers, ...
             'YTickLabels',probe_area_labels, ...
             'YLim',[0,gui_data.probe_length(gui_data.selected_probe)]);
@@ -862,7 +872,7 @@ switch gui_data.display_areas
         yyaxis(gui_data.handles.axes_probe_areas,'left');
         set(gui_data.handles.probe_areas_plot, ...
             'YData',trajectory_depths(plot_trajectory_idx), ...
-            'CData',trajectory_areas(plot_trajectory_idx));
+            'CData',trajectory_area_rgbcolors(plot_trajectory_idx,:,:));
         set(gui_data.handles.axes_probe_areas,'YTick',trajectory_area_centers, ...
             'YTickLabels',trajectory_area_labels, ...
             'YLim',prctile(trajectory_depths(plot_trajectory_idx),[0,100]))
@@ -875,14 +885,11 @@ switch gui_data.display_areas
 
 end
 
-%%%%%% IN PROGRESS: send open ephys coordinates here
-
-probe_area_hexcolors = ...
-    gui_data.st.color_hex_triplet(probe_areas(probe_area_centers_idx));
-
-send_openephys_areas(probe_area_boundaries,probe_area_labels,probe_area_hexcolors);
-
-%%%%%%%%%%%%%%%%%%%%
+% If recording software is connected, send areas for display
+if isfield(gui_data,'recording_send')
+    send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels, ...
+        probe_area_hexcolors(probe_area_centers_idx));
+end
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -1429,110 +1436,6 @@ h.Checked = new_visibility;
 guidata(probe_atlas_gui,gui_data);
 end
 
-function connect_newscale(h,eventdata,probe_atlas_gui)
-
-% Get guidata
-gui_data = guidata(probe_atlas_gui);
-
-% Flip checked status
-switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
-h.Checked = new_check;
-
-switch new_check
-    case 'on'
-        % Create button: zero probe at brain surface
-        button_fontsize = 12;
-        button_position = [0.70,0,0.20,0.05];
-        gui_data.handles.zero_dv_button = ...
-            uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
-            'Units','normalized','Position',button_position,'String','Set probe at brain surface', ...
-            'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
-        
-        % Update gui data
-        guidata(probe_atlas_gui, gui_data);
-
-        % Connect to New Scale MPM Pathfinder software
-        connect_newscale_start(probe_atlas_gui)
-
-    case 'off'
-        % Stop and delete timer function
-        try
-            stop(gui_data.manipulator_timer_fcn)
-        catch
-        end
-        delete(gui_data.manipulator_timer_fcn)
-
-        % Remove manipulator buttons
-        delete(gui_data.handles.zero_dv_button);
-end
-
-end
-
-function connect_scientifica(h,eventdata,probe_atlas_gui)
-
-% Get guidata
-gui_data = guidata(probe_atlas_gui);
-
-% Flip checked status
-switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
-h.Checked = new_check;
-
-switch new_check
-    case 'on'
-        % Create button: zero manipulator
-        button_fontsize = 12;
-        button_position = [0.75,0,0.15,0.05];
-        gui_data.handles.zero_manipulator_button = ...
-            uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
-            'Units','normalized','Position',button_position,'String','Zero manipulator', ...
-            'Callback',{@zero_scientifica,probe_atlas_gui});
-        
-        % Update gui data
-        guidata(probe_atlas_gui, gui_data);
-
-        % Connect to New Scale MPM Pathfinder software
-        connect_scientifica_start(probe_atlas_gui)
-
-    case 'off'
-        % Stop and delete timer function
-        try
-            stop(gui_data.manipulator_timer_fcn)
-        catch
-        end
-        delete(gui_data.manipulator_timer_fcn)
-
-        % Delete serial connection
-        delete(gui_data.scientifica_connection)
-        % Remove manipulator buttons
-        delete(gui_data.handles.zero_manipulator_button);
-end
-
-end
-
-function connect_openephys(h,eventdata,probe_atlas_gui)
-
-% Get guidata
-gui_data = guidata(probe_atlas_gui);
-
-% Flip checked status
-switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
-h.Checked = new_check;
-
-switch new_check
-    case 'on'
-
-        %%%%%%%%%%%% IN PROGRESS
-
-        % 1) confirm open ephys running before checking on? 
-
-        % Check Open Ephys status
-        openephys_status = webread('http://localhost:37497/api/status');
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%
-
-end
-
-end
 
 function save_probe_positions(h,eventdata,probe_atlas_gui)
 
@@ -1690,99 +1593,130 @@ end
 
 %% Manipulator interfacing
 
-function connect_newscale_start(probe_atlas_gui)
+function connect_newscale(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Add "connecting" message
-set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
-set(gui_data.probe_coordinates_text,'Color','r')
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
 
-% Initialize MPM client
-if ~isdeployed
-    % (being run in matlab: dll is kept in helpers folder)
-    newscale_client_filename = fullfile( ...
-        fileparts(which('neuropixels_trajectory_explorer')), ...
-        'nte_helpers','NstMpmClientAccess.dll');
-elseif isdeployed
-    % (standalone: included in exe, load)
-    newscale_client_filename = which('NstMpmClientAccess.dll');
+switch new_check
+    case 'on'
+        % Create button: zero probe at brain surface
+        button_fontsize = 12;
+        button_position = [0.70,0,0.20,0.05];
+        gui_data.handles.zero_dv_button = ...
+            uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+            'Units','normalized','Position',button_position,'String','Set probe at brain surface', ...
+            'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+
+        % Add "connecting" message
+        set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
+        set(gui_data.probe_coordinates_text,'Color','r')
+
+        % Initialize MPM client
+        if ~isdeployed
+            % (being run in matlab: dll is kept in helpers folder)
+            newscale_client_filename = fullfile( ...
+                fileparts(which('neuropixels_trajectory_explorer')), ...
+                'nte_helpers','newscale','NstMpmClientAccess.dll');
+        elseif isdeployed
+            % (standalone: included in exe, load)
+            newscale_client_filename = which('NstMpmClientAccess.dll');
+        end
+
+        NET.addAssembly(newscale_client_filename);
+        import NstMpmClientAccess.*
+        newscale_client = NstMpmClientAccess.NstMpmClient;
+
+        % Get IP and port configuration
+        % (load settings: default is same computer, port 8080)
+        matlab_settings = settings;
+        if ~hasGroup(matlab_settings,'neuropixels_trajectory_explorer')
+            addGroup(matlab_settings,'neuropixels_trajectory_explorer');
+        end
+        if ~hasSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_ip')
+            addSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_ip');
+            addSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_port');
+
+            matlab_settings.neuropixels_trajectory_explorer.newscale_ip.PersonalValue = 'localhost';
+            matlab_settings.neuropixels_trajectory_explorer.newscale_port.PersonalValue = '8080';
+        end
+
+        newscale_client_settings = inputdlg({'IP address (''localhost'' if this computer):', ...
+            'Port (Pathfinder: Coordinate Sys > ... > Http server) :'},'Pathfinder',1, ...
+            {matlab_settings.neuropixels_trajectory_explorer.newscale_ip.ActiveValue, ...
+            matlab_settings.neuropixels_trajectory_explorer.newscale_port.ActiveValue});
+        newscale_client.IP_Address = newscale_client_settings{1};
+        newscale_client.Port = str2num(newscale_client_settings{2});
+
+        % Save current settings for future sessions
+        matlab_settings.neuropixels_trajectory_explorer.newscale_ip.PersonalValue = char(newscale_client.IP_Address);
+        matlab_settings.neuropixels_trajectory_explorer.newscale_port.PersonalValue = num2str(newscale_client.Port);
+
+        % Initial MPM query
+        newscale_client.QueryMpmApplication;
+
+        % (if there was a query problem, error out)
+        if any(newscale_client.LastError ~= '')
+            error('Error querying MPM: %s',newscale_client.LastError);
+        end
+
+        % Get number of probes connected in the MPM
+        newscale_n_probes = newscale_client.AppData.Probes;
+
+        % Set number of probes equal to MPM-connected probe number
+        user_n_probes = length(gui_data.handles.probe_line);
+        if user_n_probes > newscale_n_probes
+            for i = 1:(user_n_probes - newscale_n_probes)
+                probe_remove([],[],probe_atlas_gui);
+                gui_data = guidata(probe_atlas_gui);
+            end
+        elseif user_n_probes < newscale_n_probes
+            for i = 1:(newscale_n_probes - user_n_probes)
+                probe_add([],[],probe_atlas_gui);
+                gui_data = guidata(probe_atlas_gui);
+            end
+        end
+
+        % Set manipulator DV offset for brain surface
+        gui_data.manipulator_dv_offset = zeros(newscale_n_probes,1);
+
+        % Save newscale_client in guidata
+        gui_data.newscale_client = newscale_client;
+        guidata(probe_atlas_gui, gui_data);
+
+        % Set up timer function for updating probe position
+        manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+        gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
+            {@get_newscale_position,probe_atlas_gui}, ...
+            'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
+            'TasksToExecute', inf);
+
+        % Restore text color
+        set(gui_data.probe_coordinates_text,'Color','k')
+
+        % Store timer function and start
+        % (necessary for the standalone, which deletes function on 'start')
+        guidata(probe_atlas_gui,gui_data);
+        start(gui_data.manipulator_timer_fcn)
+
+        % Update gui data
+        guidata(probe_atlas_gui, gui_data);
+
+    case 'off'
+        % Stop and delete timer function
+        try
+            stop(gui_data.manipulator_timer_fcn)
+        catch
+        end
+        delete(gui_data.manipulator_timer_fcn)
+
+        % Remove manipulator buttons
+        delete(gui_data.handles.zero_dv_button);
 end
-
-NET.addAssembly(newscale_client_filename);
-import NstMpmClientAccess.*
-newscale_client = NstMpmClientAccess.NstMpmClient;
-
-% Get IP and port configuration
-% (load settings: default is same computer, port 8080)
-matlab_settings = settings;
-if ~hasGroup(matlab_settings,'neuropixels_trajectory_explorer')
-    addGroup(matlab_settings,'neuropixels_trajectory_explorer');
-    addSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_ip');
-    addSetting(matlab_settings.neuropixels_trajectory_explorer,'newscale_port');
-
-    matlab_settings.neuropixels_trajectory_explorer.newscale_ip.PersonalValue = 'localhost';
-    matlab_settings.neuropixels_trajectory_explorer.newscale_port.PersonalValue = '8080';
-end
-
-newscale_client_settings = inputdlg({'IP address (Computer running Pathfinder):', ...
-    'Port (Pathfinder: Coordinate Sys > ... > Http server) :'},'Pathfinder',1, ...
-    {matlab_settings.neuropixels_trajectory_explorer.newscale_ip.ActiveValue, ...
-    matlab_settings.neuropixels_trajectory_explorer.newscale_port.ActiveValue});
-newscale_client.IP_Address = newscale_client_settings{1};
-newscale_client.Port = str2num(newscale_client_settings{2});
-
-% Save current settings for future sessions
-matlab_settings.neuropixels_trajectory_explorer.newscale_ip.PersonalValue = char(newscale_client.IP_Address);
-matlab_settings.neuropixels_trajectory_explorer.newscale_port.PersonalValue = num2str(newscale_client.Port);
-
-% Initial MPM query
-newscale_client.QueryMpmApplication;
-
-% (if there was a query problem, error out)
-if any(newscale_client.LastError ~= '')
-    error('Error querying MPM: %s',newscale_client.LastError);
-end
-
-% Get number of probes connected in the MPM
-newscale_n_probes = newscale_client.AppData.Probes;
-
-% Set number of probes equal to MPM-connected probe number
-user_n_probes = length(gui_data.handles.probe_line);
-if user_n_probes > newscale_n_probes
-    for i = 1:(user_n_probes - newscale_n_probes)
-        probe_remove([],[],probe_atlas_gui);
-        gui_data = guidata(probe_atlas_gui);
-    end
-elseif user_n_probes < newscale_n_probes
-    for i = 1:(newscale_n_probes - user_n_probes)
-        probe_add([],[],probe_atlas_gui);
-        gui_data = guidata(probe_atlas_gui);
-    end
-end
-
-% Set manipulator DV offset for brain surface 
-gui_data.manipulator_dv_offset = zeros(newscale_n_probes,1);
-
-% Save newscale_client in guidata
-gui_data.newscale_client = newscale_client;
-guidata(probe_atlas_gui, gui_data);
-
-% Set up timer function for updating probe position
-manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
-gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
-    {@get_newscale_position,probe_atlas_gui}, ...
-    'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
-    'TasksToExecute', inf);
-
-% Restore text color
-set(gui_data.probe_coordinates_text,'Color','k')
-
-% Store timer function and start
-% (necessary for the standalone, which deletes function on 'start')
-guidata(probe_atlas_gui,gui_data);
-start(gui_data.manipulator_timer_fcn)
 
 end
 
@@ -1929,44 +1863,75 @@ guidata(probe_atlas_gui, gui_data);
 
 end
 
-function connect_scientifica_start(probe_atlas_gui)
+function connect_scientifica(h,eventdata,probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Add "connecting" message
-set(gui_data.probe_coordinates_text,'String','CONNECTING TO SCIENTIFICA PATCHSTAR...');
-set(gui_data.probe_coordinates_text,'Color','r')
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
 
-% Find serial ports and prompt choice
-serial_ports = serialportlist('available');
-scientifica_serial_port = serial_ports(listdlg( ...
-    'ListString',serial_ports,'SelectionMode','single'));
+switch new_check
+    case 'on'
+        % Create button: zero manipulator
+        button_fontsize = 12;
+        button_position = [0.75,0,0.15,0.05];
+        gui_data.handles.zero_manipulator_button = ...
+            uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
+            'Units','normalized','Position',button_position,'String','Zero manipulator', ...
+            'Callback',{@zero_scientifica,probe_atlas_gui});
 
-% Connect to the manipulator, configure, store
-scientifica_connection = serialport(scientifica_serial_port,9600); % Motion Card 1: baud rate = 9600
-configureTerminator(scientifica_connection,'CR'); % Terminator = carriage return
-writeline(scientifica_connection,'ANGLE A'); % Set auto angle
-readline(scientifica_connection); % Read feedback
-writeline(scientifica_connection,'ZERO'); % Zero manipulator
-readline(scientifica_connection); % Read feedback
+        % Update gui data
+        guidata(probe_atlas_gui, gui_data);
 
-gui_data.scientifica_connection = scientifica_connection;
+        % Add "connecting" message
+        set(gui_data.probe_coordinates_text,'String','CONNECTING TO SCIENTIFICA PATCHSTAR...');
+        set(gui_data.probe_coordinates_text,'Color','r')
 
-% Set up timer function for updating probe position
-manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
-gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
-    {@get_scientifica_position,probe_atlas_gui}, ...
-    'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
-    'TasksToExecute', inf);
+        % Find serial ports and prompt choice
+        serial_ports = serialportlist('available');
+        scientifica_serial_port = serial_ports(listdlg( ...
+            'ListString',serial_ports,'SelectionMode','single'));
 
-% Restore text color
-set(gui_data.probe_coordinates_text,'Color','k')
+        % Connect to the manipulator, configure, store
+        scientifica_connection = serialport(scientifica_serial_port,9600); % Motion Card 1: baud rate = 9600
+        configureTerminator(scientifica_connection,'CR'); % Terminator = carriage return
+        writeline(scientifica_connection,'ANGLE A'); % Set auto angle
+        readline(scientifica_connection); % Read feedback
+        writeline(scientifica_connection,'ZERO'); % Zero manipulator
+        readline(scientifica_connection); % Read feedback
 
-% Store timer function and start
-% (necessary for the standalone, which deletes function on 'start')
-guidata(probe_atlas_gui,gui_data);
-start(gui_data.manipulator_timer_fcn)
+        gui_data.scientifica_connection = scientifica_connection;
+
+        % Set up timer function for updating probe position
+        manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+        gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
+            {@get_scientifica_position,probe_atlas_gui}, ...
+            'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
+            'TasksToExecute', inf);
+
+        % Restore text color
+        set(gui_data.probe_coordinates_text,'Color','k')
+
+        % Store timer function and start
+        % (necessary for the standalone, which deletes function on 'start')
+        guidata(probe_atlas_gui,gui_data);
+        start(gui_data.manipulator_timer_fcn)
+
+    case 'off'
+        % Stop and delete timer function
+        try
+            stop(gui_data.manipulator_timer_fcn)
+        catch
+        end
+        delete(gui_data.manipulator_timer_fcn)
+
+        % Delete serial connection
+        delete(gui_data.scientifica_connection)
+        % Remove manipulator buttons
+        delete(gui_data.handles.zero_manipulator_button);
+end
 
 end
 
@@ -2060,35 +2025,202 @@ end
 
 %% Recording interfacing
 
-function send_openephys_areas(probe_area_boundaries,probe_area_labels,probe_area_hexcolors)
+function connect_openephys(h,eventdata,probe_atlas_gui)
 
-%%%%%% IN PROGRESS
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
 
-% Josh email: 
-%
-% <probe_name>;<start_index_1>-<end_index_1>,<region_ID_1>,<hex_color_1>;<start_index_2>-<end_index_2>,...
-% 
-% Example:
-% ProbeA;0-69,PT,FF909F;70-97,PVT,FF909F;98-161,-,000000;162-173,-,000000,174-185,SF,90CBED;...
-% 
-% The "start_index" / "end_index" are in the indices of the electrodes in a
-% given region, ideally going all the way up the probe. The Probe Viewer
-% will then display a subset depending on which electrodes are selected.
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
 
-% (Recording has ch1 tip - ch384 top)
-probe_area_boundaries_site = (384+1) - probe_area_boundaries;
-[~,openephys_sort_idx] = sort(probe_area_boundaries_site(2:end));
+switch new_check
+    case 'on'
 
-openephys_send_txt = ['ProbeA;',cell2mat(arrayfun(@(x) sprintf('%d-%d,%s,%s;', ...
-    probe_area_boundaries_site(x+1),probe_area_boundaries_site(x)-1,probe_area_labels{x}, ...
-    probe_area_hexcolors{x}),openephys_sort_idx,'uni',false)')];
+        % Get IP and port configuration
+        % (load settings: default is same computer)
+        matlab_settings = settings;
+        if ~hasGroup(matlab_settings,'neuropixels_trajectory_explorer')
+            addGroup(matlab_settings,'neuropixels_trajectory_explorer');
+        end
+        if ~hasSetting(matlab_settings.neuropixels_trajectory_explorer,'openephys_ip')
+            addSetting(matlab_settings.neuropixels_trajectory_explorer,'openephys_ip');
+            matlab_settings.neuropixels_trajectory_explorer.openephys_ip.PersonalValue = 'localhost';
+        end
 
-url = 'http://localhost:37497/api/processors/103/config';
-openephys_send_status = webwrite(url, struct('text',openephys_send_txt), ...
-      weboptions('RequestMethod','put','MediaType','application/json'));
+        openephys_ip = inputdlg({'IP address (''localhost'' if this computer):'}, ...
+            'Open Ephys',1,{matlab_settings.neuropixels_trajectory_explorer.openephys_ip.ActiveValue});
+        openephys_port = 37497; % (this is constant in Open Ephys)
 
+        % Save current settings for future sessions
+        matlab_settings.neuropixels_trajectory_explorer.openephys_ip.PersonalValue = char(openephys_ip);
 
+        % Confirm open ephys is open on that IP (port always 37497)
+        try
+            openephys_status = webread(sprintf('http://localhost:%d/api/status',openephys_port));
+        catch me
+            errordlg(sprintf('Open Ephys not accessible on IP: %s',openephys_ip{1}),'Open Ephys');
+        end
 
+        % Set Open Ephys IP address for sending
+        gui_data.recording_send.software = 'openephys';
+        gui_data.recording_send.ip = openephys_ip{1};
+        gui_data.recording_send.port = openephys_port;
+
+    case 'off'
+        % Remove Open Ephys IP address
+        if isfield(gui_data,'openephys_ip')
+            gui_data = rmfield(gui_data,'recording_send');
+        end
+
+end
+
+% Update gui data
+guidata(probe_atlas_gui, gui_data);
+
+end
+
+function connect_spikeglx(h,eventdata,probe_atlas_gui)
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Flip checked status
+switch h.Checked; case 'on'; new_check = 'off'; case 'off'; new_check = 'on'; end;
+h.Checked = new_check;
+
+switch new_check
+    case 'on'
+
+        % Get IP and port configuration
+        % (load settings: default is same computer)
+        matlab_settings = settings;
+        if ~hasGroup(matlab_settings,'neuropixels_trajectory_explorer')
+            addGroup(matlab_settings,'neuropixels_trajectory_explorer');
+        end
+        if ~hasSetting(matlab_settings.neuropixels_trajectory_explorer,'spikeglx_ip')
+            addSetting(matlab_settings.neuropixels_trajectory_explorer,'spikeglx_ip');
+            addSetting(matlab_settings.neuropixels_trajectory_explorer,'spikeglx_port');
+
+            matlab_settings.neuropixels_trajectory_explorer.spikeglx_ip.PersonalValue = '127.0.0.1';
+            matlab_settings.neuropixels_trajectory_explorer.spikeglx_port.PersonalValue = '4142';
+        end
+
+        spikeglx_settings = inputdlg({'IP address:','Port:'}, ...
+            'SpikeGLX',1,{matlab_settings.neuropixels_trajectory_explorer.spikeglx_ip.ActiveValue, ...
+            matlab_settings.neuropixels_trajectory_explorer.spikeglx_port.ActiveValue});
+
+        spikeglx_ip = spikeglx_settings{1};
+        spikeglx_port = str2num(spikeglx_settings{2});
+
+        % Save current settings for future sessions
+        matlab_settings.neuropixels_trajectory_explorer.spikeglx_ip.PersonalValue = spikeglx_settings{1};
+        matlab_settings.neuropixels_trajectory_explorer.spikeglx_port.PersonalValue = spikeglx_settings{2};
+
+        % Connect to SpikeGLX
+        try
+            spikeglx_client = SpikeGL(spikeglx_ip,spikeglx_port);
+        catch me
+            errordlg({sprintf('SpikeGLX not accessible on %s:%d',spikeglx_ip,spikeglx_port), ...
+                'Ensure SpikeGLX server is running (SpikeGLX console: Options >  Command Server Settings > Enable)'},'SpikeGLX');
+        end
+
+        % Set Open Ephys IP address for sending
+        gui_data.recording_send.software = 'spikeglx';
+        gui_data.recording_send.client = spikeglx_client;
+
+    case 'off'
+        % Remove Open Ephys IP address
+        if isfield(gui_data,'recording_send')
+            gui_data = rmfield(gui_data,'recording_send');
+        end
+
+end
+
+% Update gui data
+guidata(probe_atlas_gui, gui_data);
+
+end
+
+function send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels,probe_area_hexcolors)
+
+switch gui_data.recording_send.software
+
+    case 'openephys'
+        % Open Ephys area conventions:
+        % <probe_name>;<start_index_1>-<end_index_1>,<region_ID_1>,<hex_color_1>;<start_index_2>-<end_index_2>,...
+        %
+        % Example:
+        % ProbeA;0-69,PT,FF909F;70-97,PVT,FF909F;98-161,-,000000;162-173,-,000000,174-185,SF,90CBED;...
+        %
+        % The "start_index" / "end_index" are in the indices of the electrodes in a
+        % given region, ideally going all the way up the probe. The Probe Viewer
+        % will then display a subset depending on which electrodes are selected.
+
+        % Flip sites: NTE goes pcb-to-tip, NPX sites go tip-to-pcb
+        probe_area_boundaries_site = (384+1) - probe_area_boundaries;
+        [~,site_sort_idx] = sort(probe_area_boundaries_site(2:end));
+
+        % Convert selected probe number to letter
+        alphabet = 'A':'Z';
+        probe_letter = alphabet(gui_data.selected_probe);
+
+        areas_send_txt = [sprintf('Probe%s;',probe_letter), ...
+            cell2mat(arrayfun(@(x) sprintf('%d-%d,%s,%s;', ...
+            probe_area_boundaries_site(x+1),probe_area_boundaries_site(x)-1, ...
+            probe_area_labels{x}, ...
+            probe_area_hexcolors{x}),site_sort_idx,'uni',false)')];
+
+        % Get probe viewer processor number
+        openephys_processors = webread(sprintf('http://%s:%d/api/processors', ...
+            gui_data.recording_send.ip,gui_data.recording_send.port));
+        probe_viewer_idx = strcmp({openephys_processors.processors.name},'Probe Viewer');
+
+        % Send areas to Open Ephys
+        if any(probe_viewer_idx)
+            openephys_url = sprintf('http://localhost:%d/api/processors/%d/config', ...
+                gui_data.recording_send.port, ...
+                openephys_processors.processors(probe_viewer_idx).id);
+            openephys_send_status = webwrite(openephys_url, struct('text',areas_send_txt), ...
+                weboptions('RequestMethod','put','MediaType','application/json'));
+        end
+
+    case 'spikeglx'
+    % SpikeGLX area conventions:
+    %     Set anatomy data string with Pinpoint format:
+    %     [probe-id,shank-id](startpos,endpos,R,G,B,rgnname)(startpos,endpos,R,G,B,rgnname)…()
+    %        - probe-id: SpikeGLX logical probe id.
+    %        - shank-id: [0..n-shanks].
+    %        - startpos: region start in microns from tip.
+    %        - endpos:   region end in microns from tip.
+    %        - R,G,B:    region color as RGB, each [0..255].
+    %        - rgnname:  region name text.
+
+    % Flip sites: NTE goes pcb-to-tip, NPX sites go tip-to-pcb
+    tip_length = 175;
+    probe_area_boundaries_um = ((384+1) - probe_area_boundaries)*10 + tip_length;
+    [~,site_sort_idx] = sort(probe_area_boundaries_um(2:end));
+
+    % Colors: hex to RGB
+    probe_area_rgbcolors = cell2mat(cellfun(@(x) ...
+        hex2dec({x(1:2),x(3:4),x(5:6)})', ...
+        probe_area_hexcolors,'uni',false));
+
+    % (note: SpikeGLX zero indexes probe/shank)
+    areas_send_txt = [sprintf('[%d,%d]',gui_data.selected_probe-1,0), ...
+        cell2mat(arrayfun(@(x) sprintf('(%d,%d,%g,%g,%g,%s)', ...
+        probe_area_boundaries_um(x+1),probe_area_boundaries_um(x)-1, ...
+        probe_area_rgbcolors(x,:), probe_area_labels{x}), ...
+        site_sort_idx,'uni',false)')];
+
+    % Send areas to SpikeGLX
+    % (sends warning about connection: turn warnings off/on to avoid)
+    orig_warning = warning;
+    warning('off','all')
+    SetAnatomy_Pinpoint(gui_data.recording_send.client,areas_send_txt);
+    warning(orig_warning);
+    
+end
 
 end
 
