@@ -2123,14 +2123,14 @@ switch new_check
         % Connect to SpikeGLX
         try
             spikeglx_client = SpikeGL(spikeglx_ip,spikeglx_port);
+
+            % Set Open Ephys IP address for sending
+            gui_data.recording_send.software = 'spikeglx';
+            gui_data.recording_send.client = spikeglx_client;
         catch me
             errordlg({sprintf('SpikeGLX not accessible on %s:%d',spikeglx_ip,spikeglx_port), ...
                 'Ensure SpikeGLX server is running (SpikeGLX console: Options >  Command Server Settings > Enable)'},'SpikeGLX');
-        end
-
-        % Set Open Ephys IP address for sending
-        gui_data.recording_send.software = 'spikeglx';
-        gui_data.recording_send.client = spikeglx_client;
+        end        
 
     case 'off'
         % Remove Open Ephys IP address
