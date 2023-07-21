@@ -87,7 +87,7 @@ ccf_cmap_c2 = cellfun(@(x)hex2dec(x(3:4)), ccf_color_hex, 'uni', false);
 ccf_cmap_c3 = cellfun(@(x)hex2dec(x(5:6)), ccf_color_hex, 'uni', false);
 ccf_cmap = horzcat(vertcat(ccf_cmap_c1{:}),vertcat(ccf_cmap_c2{:}),vertcat(ccf_cmap_c3{:}))./255;
 
-% ~~~~ Make transform matrix from CCF to bregma/mm coordinates
+%% Make transform matrix from CCF to bregma/mm coordinates
 
 % Set average stereotaxic bregma-lambda distance, set initial scale to 1
 bregma_lambda_distance_avg = 4.1; % Currently approximation
@@ -115,12 +115,22 @@ ccf_bregma_tform = affine3d(ccf_bregma_tform_matrix);
 %% Make GUI axes and objects
 
 % Set up the gui
+screen_size_px = get(0,'screensize');
+gui_aspect_ratio = 1.7; % width/length
+gui_width_fraction = 0.6; % fraction of screen width to occupy
+gui_width_px = screen_size_px(3).*gui_width_fraction;
+gui_position = [...
+    (screen_size_px(3)-gui_width_px)/2, ... % left x
+    (screen_size_px(4)-gui_width_px/gui_aspect_ratio)/2, ... % bottom y
+    gui_width_px,gui_width_px/gui_aspect_ratio]; % width, height
+
 probe_atlas_gui = figure('Toolbar','none','Menubar','none','color','w', ...
-    'Name','Neuropixels Trajectory Explorer','Units','centimeters','Position',[0.3,8,24,15], ...
+    'Name','Neuropixels Trajectory Explorer', ...
+    'Units','pixels','Position',gui_position, ...
     'CloseRequestFcn',{@gui_close});
 
 % Set up the atlas axes
-axes_atlas = axes('Position',[-0.12,0.05,1,0.9],'ZDir','reverse');
+axes_atlas = axes('Position',[-0.08,0.05,1,0.9],'ZDir','reverse');
 axis(axes_atlas,'vis3d','equal','off','manual'); hold(axes_atlas,'on');
 
 view([30,150]);
