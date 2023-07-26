@@ -41,7 +41,7 @@ av = permute(niftiread(fullfile(atlas_path,'WHS_SD_rat_atlas_v4.nii.gz')),[2,3,1
 tv(av == 0) = 0;
 
 % Load labels (made from auto-generated script)
-filename = 'C:\Users\Andrew\OneDrive for Business\Documents\Atlases\WHSrat\WHS_SD_rat_atlas_v4.label';
+filename = fullfile(atlas_path,'WHS_SD_rat_atlas_v4.label');
 startRow = 15;
 formatSpec = '%5f%6f%5f%5f%9f%3f%3f%s%[^\n\r]';
 fileID = fopen(filename,'r');
