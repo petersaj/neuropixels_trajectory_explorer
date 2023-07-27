@@ -2216,6 +2216,7 @@ switch gui_data.recording_send.software
     %        - rgnname:  region name text.
 
     % Flip sites: NTE goes pcb-to-tip, NPX sites go tip-to-pcb
+    % (note: SpikeGLX is microns from tip, so add tip length)
     tip_length = 175;
     probe_area_boundaries_um = ((384+1) - probe_area_boundaries)*10 + tip_length;
     [~,site_sort_idx] = sort(probe_area_boundaries_um(2:end));
@@ -2238,6 +2239,15 @@ switch gui_data.recording_send.software
     warning('off','all')
     SetAnatomy_Pinpoint(gui_data.recording_send.client,areas_send_txt);
     warning(orig_warning);
+
+    % SpikeGLX TO DO: 
+    % Get and send areas along sites that are currently being recorded
+    % Get geometry of recorded sites by:
+    % x = GetGeomMap(gui_data.recording_send.client,ip)
+    % (ip = probe index, zero-indexed)
+    % (commands often take js = jth stream (0=NI, 1=Onebox,2=imec probe)
+    % (ip is the ith object of the stream, the ith probe)
+    % (need to execute this one level back where it's pulling the areas)
     
 end
 

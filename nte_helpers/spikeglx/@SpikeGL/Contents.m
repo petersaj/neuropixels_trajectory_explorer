@@ -113,6 +113,21 @@
 %     Get ith global data directory.
 %     Get main data directory by setting i=0 or omitting it.
 %
+% params = GetGeomMap( myobj, ip )
+%
+%     Get geomMap for given logical imec probe.
+%     Returned as a struct of name/value pairs.
+%     Header fields:
+%         head_partNumber   ; string
+%         head_numShanks
+%         head_shankPitch   ; microns
+%         head_shankWidth   ; microns
+%     Channel 5, e.g.:
+%         ch5_s   ; shank index
+%         ch5_x   ; microns from left edge of shank
+%         ch5_z   ; microns from center of tip-most electrode row
+%         ch5_u   ; used-flag (in CAR operations)
+%
 % [APgain,LFgain] = GetImecChanGains( myobj, ip, chan )
 %
 %     Returns the AP and LF gains for given probe and channel.

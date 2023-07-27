@@ -8,7 +8,7 @@
 %     - partNumber: string, e.g., NP1000.
 %     - If no probes, return '()'.
 %
-function [name] = GetProbeList( s )
+function [list] = GetProbeList( s )
 
     list = DoQuery( s, 'GETPROBELIST' );
 end
