@@ -1702,7 +1702,7 @@ switch new_check
         manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
         gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
             {@get_newscale_position,probe_atlas_gui}, ...
-            'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
+            'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedSpacing', ...
             'TasksToExecute', inf);
 
         % Restore text color
@@ -1712,9 +1712,6 @@ switch new_check
         % (necessary for the standalone, which deletes function on 'start')
         guidata(probe_atlas_gui,gui_data);
         start(gui_data.manipulator_timer_fcn)
-
-        % Update gui data
-        guidata(probe_atlas_gui, gui_data);
 
     case 'off'
         % Stop and delete timer function
