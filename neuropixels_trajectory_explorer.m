@@ -134,7 +134,7 @@ axes_atlas = axes('Position',[-0.08,0.05,1,0.9],'ZDir','reverse');
 axis(axes_atlas,'vis3d','equal','off','manual'); hold(axes_atlas,'on');
 
 view([30,150]);
-clim([0 300]);
+caxis([0 300]);
 xlim([-5,5]);ylim([-8,6]);zlim([-1,6.5]);
 grid_spacing = 0.5;
 set(gca,'XTick',floor(min(xlim)):grid_spacing:ceil(max(xlim)));
@@ -483,7 +483,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
             curr_slice(curr_slice < 20) = NaN; % threshold values
 
             colormap(gui_data.handles.axes_atlas,'gray');
-            clim(gui_data.handles.axes_atlas,[0,255]);
+            caxis(gui_data.handles.axes_atlas,[0,255]);
 
         case 'av'
             curr_slice = nan(size(plane_ap_ccf));
@@ -491,7 +491,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
             curr_slice(curr_slice <= 1) = NaN; % threshold values
 
             colormap(gui_data.handles.axes_atlas,gui_data.cmap);
-            clim(gui_data.handles.axes_atlas,[1,size(gui_data.cmap,1)]);
+            caxis(gui_data.handles.axes_atlas,[1,size(gui_data.cmap,1)]);
     end
 
     % Update the slice display
