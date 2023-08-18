@@ -1102,18 +1102,12 @@ gui_data = guidata(probe_atlas_gui);
 % Prompt for which structures to show (only structures which are
 % labelled in the slice-spacing downsampled annotated volume)
 slice_spacing = 10;
-parsed_structures = unique(reshape(gui_data.av(1:slice_spacing:end, ...
-    1:slice_spacing:end,1:slice_spacing:end),[],1));
 
-% plot_structure_parsed = listdlg('PromptString','Select a structure to plot:', ...
-%     'ListString',gui_data.st.safe_name(parsed_structures),'ListSize',[520,500], ...
-%     'SelectionMode','single');
-% plot_structure = parsed_structures(plot_structure_parsed);
-
-% (change: show all structures even if not parsed to allow hierarchy)
-plot_structure = listdlg('PromptString','Select a structure to plot:', ...
-    'ListString',gui_data.st.safe_name,'ListSize',[520,500], ...
-    'SelectionMode','single');
+% Sort by alphabetical order and display list
+[~,area_sort_idx] = sort(gui_data.st.safe_name);
+plot_structure = area_sort_idx(listdlg('PromptString','Select a structure to plot:', ...
+    'ListString',gui_data.st.safe_name(area_sort_idx),'ListSize',[520,500], ...
+    'SelectionMode','single'));
 
 % Draw areas
 draw_areas(probe_atlas_gui,plot_structure);
