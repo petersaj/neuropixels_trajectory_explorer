@@ -1909,7 +1909,7 @@ switch new_check
         manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
         gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
             {@get_scientifica_position,probe_atlas_gui}, ...
-            'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedDelay', ...
+            'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedSpacing', ...
             'TasksToExecute', inf);
 
         % Restore text color
@@ -1941,15 +1941,18 @@ function get_scientifica_position(obj,event,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Get position (Z,Y,X)
+% Clear the manipulator buffer
+flush(gui_data.scientifica_connection)
+
+% Get position
 % (allow a few attempts, if conflics with other commands)
 writeline(gui_data.scientifica_connection,'P');
 scientifica_position = str2num(readline(gui_data.scientifica_connection));
 
 writeline(gui_data.scientifica_connection,'ANGLE');
 scientifica_elevation_angle = str2num(readline(gui_data.scientifica_connection));
-
-probe_tip = scientifica_position([3,2,1])'/1000;
+% (convert coordinate order and direction)
+probe_tip = (scientifica_position([2,1,3]).*[1,-1,-1])'/1000;
 probe_angle = [90,scientifica_elevation_angle]; % TO DO: currently assume 90 azimuth
 
 % (using length of recording sites, not full length of the probe from VCS)
@@ -2012,14 +2015,14 @@ function zero_scientifica(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Stop the timer, give a second to finish ongoing
+% Stop manipulator read timer
 stop(gui_data.manipulator_timer_fcn);
 
 % Zero manipulator
 writeline(gui_data.scientifica_connection,'ZERO'); % Zero manipulator
 readline(gui_data.scientifica_connection); % Read feedback
 
-% Re-start the timer
+% Re-start manipulator read timer
 start(gui_data.manipulator_timer_fcn);
 
 end
