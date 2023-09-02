@@ -94,7 +94,7 @@ bregma_lambda_distance_avg = 4.1; % Currently approximation
 
 % (translation values from our bregma estimate: AP/ML from Paxinos, DV from
 % rough MRI estimate)
-bregma_ccf = [570.5,580,44]; % [ML,AP,DV]
+bregma_ccf = [570.5,540,44]; % [ML,AP,DV]
 ccf_translation_tform = eye(4)+[zeros(3,4);-bregma_ccf,0];
 
 % (scaling "Toronto MRI transform", reflect AP/ML, convert 10um to 1mm)
