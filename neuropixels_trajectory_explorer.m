@@ -490,6 +490,8 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
             curr_slice(plane_coords_inbounds) = gui_data.av(plane_idx);
             curr_slice(curr_slice <= 1) = NaN; % threshold values
 
+            curr_slice(boundarymask(max(curr_slice,0),4)) = 0;
+
             colormap(gui_data.handles.axes_atlas,gui_data.cmap);
             caxis(gui_data.handles.axes_atlas,[1,size(gui_data.cmap,1)]);
     end
@@ -1430,8 +1432,7 @@ set(gui_data.handles.axes_probe_areas,'ycolor',new_font_color)
 yyaxis(gui_data.handles.axes_probe_areas,'right');
 set(gui_data.handles.axes_probe_areas,'ycolor',new_font_color)
 set(gui_data.handles.axes_probe_areas.Title,'color',new_font_color)
-set(gui_data.probe_coordinates_text,'BackgroundColor',new_bg_color)
-set(gui_data.probe_coordinates_text,'ForegroundColor',new_font_color)
+set(gui_data.probe_coordinates_text,'color',new_font_color)
 
 % Set menu item check
 h.Checked = new_visibility;
