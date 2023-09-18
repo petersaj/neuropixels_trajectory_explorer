@@ -59,7 +59,7 @@ ccf_cmap = [st.R,st.G,st.B]/255;
 
 % ~~~~ Make transform matrix from CCF to bregma/mm coordinates
 % This is in the coordinates pdf
-bregma_ccf = [635,440,246]; % [AP,DV,ML]
+bregma_ccf = [653,440,246]; % [AP,DV,ML]
 ccf_translation_tform = eye(4)+[zeros(3,4);-bregma_ccf([3,1,2]),0];
 
 % (scale voxel to mm)
