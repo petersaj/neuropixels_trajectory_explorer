@@ -772,7 +772,9 @@ if isempty(trajectory_brain_intersect)
     return
 end
 
-trajectory_depths = pdist2(trajectory_brain_intersect',...
+trajectory_depths = ones(trajectory_n_coords,1);
+trajectory_depths(trajectory_coords_ccf_inbounds) = ...
+    pdist2(trajectory_brain_intersect',...
     [trajectory_ml_coords_bregma(trajectory_coords_ccf_inbounds); ...
     trajectory_ap_coords_bregma(trajectory_coords_ccf_inbounds); ...
     trajectory_dv_coords_bregma(trajectory_coords_ccf_inbounds)]');
@@ -958,6 +960,8 @@ function view_coronal(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 view(gui_data.handles.axes_atlas,[0,0]);
 update_slice(probe_atlas_gui);
+% (hacky - switch focus back to axes)
+set(h,'enable','off');drawnow;set(h,'enable','on');
 end
 
 function view_sagittal(h,eventdata,probe_atlas_gui)
@@ -965,6 +969,8 @@ function view_sagittal(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 view(gui_data.handles.axes_atlas,[-90,0]);
 update_slice(probe_atlas_gui);
+% (hacky - switch focus back to axes)
+set(h,'enable','off');drawnow;set(h,'enable','on');
 end
 
 function view_horizontal(h,eventdata,probe_atlas_gui)
@@ -972,6 +978,8 @@ function view_horizontal(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 view(gui_data.handles.axes_atlas,[0,90]);
 update_slice(probe_atlas_gui);
+% (hacky - switch focus back to axes)
+set(h,'enable','off');drawnow;set(h,'enable','on');
 end
 
 function popup_controls(~,~,~)
