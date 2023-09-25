@@ -1469,14 +1469,14 @@ probe_positions_ccf = squeeze(mat2cell(permute(cat(3, ...
     probe_ap_ccf,probe_dv_ccf,probe_ml_ccf),[3,2,1]), ...
     3,2,ones(n_probes,1)));
 
-% Get areas in 10um increments along probe
+% Get positions along each probe
 probe_areas = cell(n_probes,1);
 for curr_probe = 1:n_probes
 
-    probe_vector = cell2mat(get(gui_data.handles.probe_line(gui_data.selected_probe),{'XData','YData','ZData'})');
-
-    probe_n_coords = round(sqrt(sum(diff(probe_vector,[],2).^2))*100); % 10um resolution along active sites
-    probe_coords_depth = linspace(0,gui_data.probe_length(gui_data.selected_probe),probe_n_coords);
+    % Sample areas along probe every 1um
+    probe_vector = cell2mat(get(gui_data.handles.probe_line(curr_probe),{'XData','YData','ZData'})');
+    probe_n_coords = round(norm(diff(probe_vector,[],2))*1000);
+    probe_coords_depth = linspace(0,gui_data.probe_length(curr_probe),probe_n_coords);
 
     [probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
         linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
@@ -1492,16 +1492,26 @@ for curr_probe = 1:n_probes
     probe_coords_ccf_inbounds = all(probe_coords_ccf > 0 & ...
         probe_coords_ccf <= size(gui_data.av)',1);
 
-    probe_idx = ...
+    probe_location_idx = ...
         sub2ind(size(gui_data.av), ...
         round(probe_ap_coords_ccf(probe_coords_ccf_inbounds)), ...
         round(probe_dv_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_ml_coords_ccf(probe_coords_ccf_inbounds)));
+        round(probe_ml_coords_ccf(probe_coords_ccf_inbounds)))';
 
-    probe_areas_idx = ones(probe_n_coords,1); % (out of CCF = 1: non-brain)
-    probe_areas_idx(probe_coords_ccf_inbounds) = gui_data.av(probe_idx);
+    % Get boundaries of areas and area IDs
+    probe_area_idx_sampled = ones(probe_n_coords,1);
+    probe_area_idx_sampled(probe_coords_ccf_inbounds) = gui_data.av(probe_location_idx);
+    probe_area_bins = [1;(find(diff(probe_area_idx_sampled)~= 0)+1);probe_n_coords];
+    probe_area_boundaries = [probe_area_bins(1:end-1),probe_area_bins(2:end)];
 
-    probe_areas{curr_probe} = gui_data.st(probe_areas_idx,:);
+    probe_area_idx = probe_area_idx_sampled(probe_area_boundaries(:,1));
+
+    % Store structure tree entries for probe areas (ammend start depth for each area)
+    store_areas_idx = probe_area_idx > 1; % only use areas in brain (idx > 1)
+    curr_probe_areas = gui_data.st(probe_area_idx(store_areas_idx),:);
+    curr_probe_areas.probe_depth = probe_coords_depth(probe_area_boundaries(store_areas_idx,:));
+
+    probe_areas{curr_probe} = curr_probe_areas;
 
 end
 
