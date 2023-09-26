@@ -1476,7 +1476,7 @@ for curr_probe = 1:n_probes
     % Sample areas along probe every 1um
     probe_vector = cell2mat(get(gui_data.handles.probe_line(curr_probe),{'XData','YData','ZData'})');
     probe_n_coords = round(norm(diff(probe_vector,[],2))*1000);
-    probe_coords_depth = linspace(0,gui_data.probe_length(curr_probe),probe_n_coords);
+    probe_coords_depth = linspace(0,gui_data.probe_length(curr_probe)*1000-1,probe_n_coords);
 
     [probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
         linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
