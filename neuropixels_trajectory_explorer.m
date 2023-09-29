@@ -911,9 +911,11 @@ switch gui_data.display_areas
 end
 
 % If recording software is connected, send areas for display
-if isfield(gui_data,'recording_send')
+if isfield(gui_data,'connection') && isfield(gui_data.connection,'recording')
     send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels, ...
         probe_area_hexcolors(probe_area_centers_idx));
+%     send_recording_areas(gui_data,trajectory_area_boundaries,trajectory_area_labels, ...
+%         trajectory_area_hexcolors(trajectory_area_centers_idx));
 end
 
 % Upload gui_data
@@ -2199,7 +2201,7 @@ function send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels,p
 
 switch gui_data.connection.recording.software
 
-    case 'openephys'
+    case 'Open Ephys'
         % Open Ephys area conventions:
         % <probe_name>;<start_index_1>-<end_index_1>,<region_ID_1>,<hex_color_1>;<start_index_2>-<end_index_2>,...
         %
@@ -2239,7 +2241,7 @@ switch gui_data.connection.recording.software
                 weboptions('RequestMethod','put','MediaType','application/json'));
         end
 
-    case 'spikeglx'
+    case 'SpikeGLX'
     % SpikeGLX area conventions:
     %     Set anatomy data string with Pinpoint format:
     %     [probe-id,shank-id](startpos,endpos,R,G,B,rgnname)(startpos,endpos,R,G,B,rgnname)…()
@@ -2249,6 +2251,22 @@ switch gui_data.connection.recording.software
     %        - endpos:   region end in microns from tip.
     %        - R,G,B:    region color as RGB, each [0..255].
     %        - rgnname:  region name text.
+
+    % Get SpikeGLX probes (unused at the moment)
+    orig_warning = warning;
+    warning('off','all')
+    spikeglx_probelist = GetProbeList(gui_data.connection.recording.client);
+    spike_glx_probelist_parsed = regexp(spikeglx_probelist, ...
+        '(\d*),(\d*),PRB_(\d*)_(\d*)_(\d*)_(\d*)','tokens');
+    warning(orig_warning);
+    
+    % (unused - method to get geometry of selected sites)
+%     spikeglx_sitemap = GetGeomMap(gui_data.connection.recording.client,gui_data.selected_probe);
+
+    % If selected probe index is more than number of SpikeGLX: do nothing
+    if gui_data.selected_probe > length(spike_glx_probelist_parsed)
+        return
+    end
 
     % Flip sites: NTE goes pcb-to-tip, NPX sites go tip-to-pcb
     % (note: SpikeGLX is microns from tip, so add tip length)
