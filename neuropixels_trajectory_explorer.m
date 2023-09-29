@@ -763,9 +763,11 @@ trajectory_depths(trajectory_coords_ccf_inbounds) = ...
     trajectory_ap_coords_bregma(trajectory_coords_ccf_inbounds); ...
     trajectory_dv_coords_bregma(trajectory_coords_ccf_inbounds)]');
 
-trajectory_area_boundaries = intersect(unique([find(trajectory_areas ~= 1,1,'first'); ...
+trajectory_area_boundaries_idx = intersect(unique([find(trajectory_areas ~= 1,1,'first'); ...
     find(diff(trajectory_areas) ~= 0);find(trajectory_areas ~= 1,1,'last')]),find(trajectory_areas ~= 1));
-trajectory_area_centers_idx = round(trajectory_area_boundaries(1:end-1) + diff(trajectory_area_boundaries)/2);
+trajectory_area_centers_idx = round(trajectory_area_boundaries_idx(1:end-1) + diff(trajectory_area_boundaries_idx)/2);
+
+trajectory_area_boundaries = trajectory_depths(trajectory_area_boundaries_idx);
 trajectory_area_centers = trajectory_depths(trajectory_area_centers_idx);
 
 % Label areas by acronym/full name
@@ -866,10 +868,11 @@ set(gui_data.probe_coordinates_text,'String',probe_text(cellfun(@(x) ~isempty(x)
 
 % If recording software is connected, send areas for display
 if isfield(gui_data,'connection') && isfield(gui_data.connection,'recording')
-    send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels, ...
-        probe_area_hexcolors(probe_area_centers_idx));
-%     send_recording_areas(gui_data,trajectory_area_boundaries,trajectory_area_labels, ...
-%         trajectory_area_hexcolors(trajectory_area_centers_idx));
+    send_recording_areas(gui_data, ...
+        probe_depths, ...
+        trajectory_area_boundaries, ...
+        trajectory_area_labels, ...
+        trajectory_area_hexcolors(trajectory_area_centers_idx));
 end
 
 % Upload gui_data
@@ -2148,7 +2151,7 @@ update_probe_coordinates(probe_atlas_gui);
 
 end
 
-function send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels,probe_area_hexcolors)
+function send_recording_areas(gui_data,probe_depth,area_boundaries,area_labels,area_hexcolors)
 
 switch gui_data.connection.recording.software
 
@@ -2163,19 +2166,28 @@ switch gui_data.connection.recording.software
         % given region, ideally going all the way up the probe. The Probe Viewer
         % will then display a subset depending on which electrodes are selected.
 
-        % Flip sites: NTE goes pcb-to-tip, NPX sites go tip-to-pcb
-        probe_area_boundaries_site = (384+1) - probe_area_boundaries;
-        [~,site_sort_idx] = sort(probe_area_boundaries_site(2:end));
+        % Calculate the depths of each site along the trajectory
+        n_sites = 1000;
+        site_y_spacing = 0.02;
+        probe_sites = reshape(repmat(((1:n_sites/2)-1)*site_y_spacing,2,1),[],1);
+        probe_sites_depth = sort(probe_depth(2) - probe_sites);
+        probe_sites_depth_bins = [probe_sites_depth - site_y_spacing/2; ...
+            probe_sites_depth(end) + site_y_spacing/2];
+
+        % Get the area boundaries as site numbers (flip top/tip)
+        area_boundaries_sites = discretize(area_boundaries,probe_sites_depth_bins,(n_sites:-1:1)-1);
 
         % Convert selected probe number to letter
         alphabet = 'A':'Z';
         probe_letter = alphabet(gui_data.selected_probe);
-
+    
+        send_areas = find(~isnan(area_boundaries_sites));
+        [~,send_area_sort] = sort(area_boundaries_sites(send_areas));
         areas_send_txt = [sprintf('Probe%s;',probe_letter), ...
             cell2mat(arrayfun(@(x) sprintf('%d-%d,%s,%s;', ...
-            probe_area_boundaries_site(x+1),probe_area_boundaries_site(x)-1, ...
-            probe_area_labels{x}, ...
-            probe_area_hexcolors{x}),site_sort_idx,'uni',false)')];
+            area_boundaries_sites(x+1),area_boundaries_sites(x), ...
+            area_labels{x}, ...
+            area_hexcolors{x}),send_areas(send_area_sort),'uni',false)')];
 
         % Get probe viewer processor number
         openephys_processors = webread(sprintf('http://%s:%d/api/processors', ...
@@ -2210,32 +2222,28 @@ switch gui_data.connection.recording.software
     spike_glx_probelist_parsed = regexp(spikeglx_probelist, ...
         '(\d*),(\d*),PRB_(\d*)_(\d*)_(\d*)_(\d*)','tokens');
     warning(orig_warning);
-    
-    % (unused - method to get geometry of selected sites)
-%     spikeglx_sitemap = GetGeomMap(gui_data.connection.recording.client,gui_data.selected_probe);
 
     % If selected probe index is more than number of SpikeGLX: do nothing
     if gui_data.selected_probe > length(spike_glx_probelist_parsed)
         return
     end
 
-    % Flip sites: NTE goes pcb-to-tip, NPX sites go tip-to-pcb
-    % (note: SpikeGLX is microns from tip, so add tip length)
+    % Get area depths relative to probe tip 
+    % (SpikeGLX is microns from tip, so add in tip length)
     tip_length = 175;
-    probe_area_boundaries_um = ((384+1) - probe_area_boundaries)*10 + tip_length;
-    [~,site_sort_idx] = sort(probe_area_boundaries_um(2:end));
+    area_boundaries_um = -(area_boundaries-probe_depth(2))*1000 + tip_length;
 
     % Colors: hex to RGB
-    probe_area_rgbcolors = cell2mat(cellfun(@(x) ...
+    area_rgbcolors = cell2mat(cellfun(@(x) ...
         hex2dec({x(1:2),x(3:4),x(5:6)})', ...
-        probe_area_hexcolors,'uni',false));
+        area_hexcolors,'uni',false));
 
     % (note: SpikeGLX zero indexes probe/shank)
     areas_send_txt = [sprintf('[%d,%d]',gui_data.selected_probe-1,0), ...
         cell2mat(arrayfun(@(x) sprintf('(%d,%d,%g,%g,%g,%s)', ...
-        probe_area_boundaries_um(x+1),probe_area_boundaries_um(x)-1, ...
-        probe_area_rgbcolors(x,:), probe_area_labels{x}), ...
-        site_sort_idx,'uni',false)')];
+        area_boundaries_um(x+1),area_boundaries_um(x)-1, ...
+        area_rgbcolors(x,:), area_labels{x}), ...
+        (1:length(area_boundaries_um)-1)','uni',false)')];
 
     % Send areas to SpikeGLX
     % (sends warning about connection: turn warnings off/on to avoid)
