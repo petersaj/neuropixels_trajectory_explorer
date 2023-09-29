@@ -201,9 +201,6 @@ uimenu(object_menu,'Text','Probe','MenuSelectedFcn',{@visibility_probe,probe_atl
 uimenu(object_menu,'Text','3D areas','MenuSelectedFcn',{@visibility_3d_areas,probe_atlas_gui},'Checked','on');
 uimenu(object_menu,'Text','Dark mode','MenuSelectedFcn',{@visibility_darkmode,probe_atlas_gui});
 
-% manipulator_menu = uimenu(probe_atlas_gui,'Text','Manipulator');
-% uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@manipulator_newscale,probe_atlas_gui});
-% uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@manipulator_scientifica,probe_atlas_gui});
 connect_menu = uimenu(probe_atlas_gui,'Text','Connect');
 manipulator_menu = uimenu(connect_menu,'Text','Manipulator');
 uimenu(manipulator_menu,'Text','New Scale MPM','MenuSelectedFcn',{@connect_newscale,probe_atlas_gui});
@@ -841,11 +838,25 @@ recording_endpoint_text = sprintf('Recording tip:   % .2f AP, % .2f ML, % .2f DV
     probe_vector([2,1,3],2));
 bregma_lambda_text = sprintf('Bregma-Lambda distance: % .2f mm', ...
     gui_data.bregma_lambda_distance_curr);
+% (connection status)
+manipulator_text = [];
+recording_text = [];
+if isfield(gui_data,'connection')
+    if isfield(gui_data.connection,'manipulator')
+        manipulator_text = sprintf('Connected manipulator: %s', ...
+        gui_data.connection.manipulator.model);
+    end
+    if isfield(gui_data.connection,'recording')
+        recording_text = sprintf('Connected recording: %s', ...
+        gui_data.connection.recording.software);
+    end
+end
 
 % (combine and update)
 probe_text = {probe_angle_text,probe_insertion_text, ...
-    recording_startpoint_text,recording_endpoint_text,bregma_lambda_text};
-set(gui_data.probe_coordinates_text,'String',probe_text);
+    recording_startpoint_text,recording_endpoint_text,bregma_lambda_text, ...
+    manipulator_text,recording_text};
+set(gui_data.probe_coordinates_text,'String',probe_text(cellfun(@(x) ~isempty(x),probe_text)));
 
 % Update the areas (probe or trajectory, depending on selected)
 if ~isfield(gui_data,'display_areas')
@@ -1708,12 +1719,13 @@ switch new_check
         gui_data.manipulator_dv_offset = zeros(newscale_n_probes,1);
 
         % Save newscale_client in guidata
-        gui_data.newscale_client = newscale_client;
+        gui_data.connection.manipulator.model = 'New Scale MPM';
+        gui_data.connection.manipulator.client = newscale_client;
         guidata(probe_atlas_gui, gui_data);
 
         % Set up timer function for updating probe position
         manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
-        gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
+        gui_data.connection.manipulator.timer_fcn = timer('TimerFcn', ...
             {@get_newscale_position,probe_atlas_gui}, ...
             'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedSpacing', ...
             'TasksToExecute', inf);
@@ -1724,18 +1736,27 @@ switch new_check
         % Store timer function and start
         % (necessary for the standalone, which deletes function on 'start')
         guidata(probe_atlas_gui,gui_data);
-        start(gui_data.manipulator_timer_fcn)
+        start(gui_data.connection.manipulator.timer_fcn)
+
+        % Update probe coordinates
+        update_probe_coordinates(probe_atlas_gui);
 
     case 'off'
-        % Stop and delete timer function
+        % Stop timer function and delete connection
         try
-            stop(gui_data.manipulator_timer_fcn)
+            stop(gui_data.connection.manipulator.timer_fcn)
         catch
         end
-        delete(gui_data.manipulator_timer_fcn)
+        gui_data.connection = rmfield(gui_data.connection,'manipulator');
 
         % Remove manipulator buttons
         delete(gui_data.handles.zero_dv_button);
+
+        % Update gui data
+        guidata(probe_atlas_gui,gui_data);
+
+        % Update probe coordinates
+        update_probe_coordinates(probe_atlas_gui);
 end
 
 end
@@ -1746,13 +1767,13 @@ function get_newscale_position(obj,event,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Query MPM app for probe information
-gui_data.newscale_client.QueryMpmApplication;
+gui_data.connection.manipulator.client.QueryMpmApplication;
 
 % Loop through all MPM probes, update data
-for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
+for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probes
 
     % Get given MPM probe data (0-indexed)
-    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(curr_newscale_probe-1);
+    newscale_probe_info = gui_data.connection.manipulator.client.AppData.GetProbe(curr_newscale_probe-1);
 
     % Get tip position of probe (MPM convention: -Z is down)
     probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
@@ -1768,7 +1789,7 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
 
     % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
     mpm2nte_angles = ...
-        [newscale_probe_info.Polar-double(gui_data.newscale_client.AppData.PosteriorAngle), ...
+        [newscale_probe_info.Polar-double(gui_data.connection.manipulator.client.AppData.PosteriorAngle), ...
         90-newscale_probe_info.Pitch];
 
     % (using length of recording sites, not full length of the probe from VCS)
@@ -1826,7 +1847,7 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     guidata(probe_atlas_gui, gui_data);
 
     % Get bregma-lambda distance (from Probe A), re-scale atlas if changed
-    newscale_probe_info = gui_data.newscale_client.AppData.GetProbe(0);
+    newscale_probe_info = gui_data.connection.manipulator.client.AppData.GetProbe(0);
     newscale_bregma_lambda_distance = ...
         norm([newscale_probe_info.Bregma_X,newscale_probe_info.Bregma_Y,newscale_probe_info.Bregma_Z]- ...
         [newscale_probe_info.Lambda_X,newscale_probe_info.Lambda_Y,newscale_probe_info.Lambda_Z]);
@@ -1835,7 +1856,7 @@ for curr_newscale_probe = 1:gui_data.newscale_client.AppData.Probes
     end
 
     % Select MPM-selected probe (0-indexed, unselected = -1 so force >1)
-    newscale_selected_probe = max(gui_data.newscale_client.AppData.SelectedProbe+1,1);
+    newscale_selected_probe = max(gui_data.connection.manipulator.client.AppData.SelectedProbe+1,1);
     select_probe(gui_data.handles.probe_line(newscale_selected_probe),[],probe_atlas_gui)
 
     % Update the slice and probe coordinates
@@ -1922,11 +1943,12 @@ switch new_check
         writeline(scientifica_connection,'ZERO'); % Zero manipulator
         readline(scientifica_connection); % Read feedback
 
-        gui_data.scientifica_connection = scientifica_connection;
+        gui_data.connection.manipulator.model = 'Scientifica Patchstar';
+        gui_data.connection.manipulator.client = scientifica_connection;
 
         % Set up timer function for updating probe position
         manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
-        gui_data.manipulator_timer_fcn = timer('TimerFcn', ...
+        gui_data.connection.manipulator.timer_fcn = timer('TimerFcn', ...
             {@get_scientifica_position,probe_atlas_gui}, ...
             'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedSpacing', ...
             'TasksToExecute', inf);
@@ -1937,18 +1959,18 @@ switch new_check
         % Store timer function and start
         % (necessary for the standalone, which deletes function on 'start')
         guidata(probe_atlas_gui,gui_data);
-        start(gui_data.manipulator_timer_fcn)
+        start(gui_data.connection.manipulator.timer_fcn)
 
     case 'off'
         % Stop and delete timer function
         try
-            stop(gui_data.manipulator_timer_fcn)
+            stop(gui_data.connection.manipulator.timer_fcn)
         catch
         end
-        delete(gui_data.manipulator_timer_fcn)
+        delete(gui_data.connection.manipulator.timer_fcn)
 
         % Delete serial connection
-        delete(gui_data.scientifica_connection)
+        delete(gui_data.connection.manipulator.client)
         % Remove manipulator buttons
         delete(gui_data.handles.zero_manipulator_button);
 end
@@ -1961,15 +1983,15 @@ function get_scientifica_position(obj,event,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Clear the manipulator buffer
-flush(gui_data.scientifica_connection)
+flush(gui_data.connection.manipulator.client)
 
 % Get position
 % (allow a few attempts, if conflics with other commands)
-writeline(gui_data.scientifica_connection,'P');
-scientifica_position = str2num(readline(gui_data.scientifica_connection));
+writeline(gui_data.connection.manipulator.client,'P');
+scientifica_position = str2num(readline(gui_data.connection.manipulator.client));
 
-writeline(gui_data.scientifica_connection,'ANGLE');
-scientifica_elevation_angle = str2num(readline(gui_data.scientifica_connection));
+writeline(gui_data.connection.manipulator.client,'ANGLE');
+scientifica_elevation_angle = str2num(readline(gui_data.connection.manipulator.client));
 % (convert coordinate order and direction)
 probe_tip = (scientifica_position([2,1,3]).*[1,-1,-1])'/1000;
 probe_angle = [90,scientifica_elevation_angle]; % TO DO: currently assume 90 azimuth
@@ -2035,14 +2057,14 @@ function zero_scientifica(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Stop manipulator read timer
-stop(gui_data.manipulator_timer_fcn);
+stop(gui_data.connection.manipulator.timer_fcn);
 
 % Zero manipulator
-writeline(gui_data.scientifica_connection,'ZERO'); % Zero manipulator
-readline(gui_data.scientifica_connection); % Read feedback
+writeline(gui_data.connection.manipulator.client,'ZERO'); % Zero manipulator
+readline(gui_data.connection.manipulator.client); % Read feedback
 
 % Re-start manipulator read timer
-start(gui_data.manipulator_timer_fcn);
+start(gui_data.connection.manipulator.timer_fcn);
 
 end
 
@@ -2088,14 +2110,14 @@ switch new_check
         end
 
         % Set Open Ephys IP address for sending
-        gui_data.recording_send.software = 'openephys';
-        gui_data.recording_send.ip = openephys_ip{1};
-        gui_data.recording_send.port = openephys_port;
+        gui_data.connection.recording.software = 'Open Ephys';
+        gui_data.connection.recording.ip = openephys_ip{1};
+        gui_data.connection.recording.port = openephys_port;
 
     case 'off'
-        % Remove Open Ephys IP address
-        if isfield(gui_data,'openephys_ip')
-            gui_data = rmfield(gui_data,'recording_send');
+        % Remove recording connection
+        if isfield(gui_data.connection,'recording')
+            gui_data.connection = rmfield(gui_data.connection,'recording');
         end
 
 end
@@ -2150,17 +2172,17 @@ switch new_check
             spikeglx_client = SpikeGL(spikeglx_ip,spikeglx_port);
 
             % Set Open Ephys IP address for sending
-            gui_data.recording_send.software = 'spikeglx';
-            gui_data.recording_send.client = spikeglx_client;
+            gui_data.connection.recording.software = 'SpikeGLX';
+            gui_data.connection.recording.client = spikeglx_client;
         catch me
             errordlg({sprintf('SpikeGLX not accessible on %s:%d',spikeglx_ip,spikeglx_port), ...
                 'Ensure SpikeGLX server is running (SpikeGLX console: Options >  Command Server Settings > Enable)'},'SpikeGLX');
         end        
 
     case 'off'
-        % Remove Open Ephys IP address
-        if isfield(gui_data,'recording_send')
-            gui_data = rmfield(gui_data,'recording_send');
+        % Remove recording connection
+        if isfield(gui_data.connection,'recording')
+            gui_data.connection = rmfield(gui_data.connection,'recording');
         end
 
 end
@@ -2175,7 +2197,7 @@ end
 
 function send_recording_areas(gui_data,probe_area_boundaries,probe_area_labels,probe_area_hexcolors)
 
-switch gui_data.recording_send.software
+switch gui_data.connection.recording.software
 
     case 'openephys'
         % Open Ephys area conventions:
@@ -2204,14 +2226,14 @@ switch gui_data.recording_send.software
 
         % Get probe viewer processor number
         openephys_processors = webread(sprintf('http://%s:%d/api/processors', ...
-            gui_data.recording_send.ip,gui_data.recording_send.port));
+            gui_data.connection.recording.ip,gui_data.connection.recording.port));
         probe_viewer_idx = strcmp({openephys_processors.processors.name},'Probe Viewer');
 
         % Send areas to Open Ephys
         if any(probe_viewer_idx)
             openephys_url = sprintf('http://%s:%d/api/processors/%d/config', ...
-                gui_data.recording_send.ip, ...
-                gui_data.recording_send.port, ...
+                gui_data.connection.recording.ip, ...
+                gui_data.connection.recording.port, ...
                 openephys_processors.processors(probe_viewer_idx).id);
             openephys_send_status = webwrite(openephys_url, struct('text',areas_send_txt), ...
                 weboptions('RequestMethod','put','MediaType','application/json'));
@@ -2250,13 +2272,13 @@ switch gui_data.recording_send.software
     % (sends warning about connection: turn warnings off/on to avoid)
     orig_warning = warning;
     warning('off','all')
-    SetAnatomy_Pinpoint(gui_data.recording_send.client,areas_send_txt);
+    SetAnatomy_Pinpoint(gui_data.connection.recording.client,areas_send_txt);
     warning(orig_warning);
 
     % SpikeGLX TO DO: 
     % Get and send areas along sites that are currently being recorded
     % Get geometry of recorded sites by:
-    % x = GetGeomMap(gui_data.recording_send.client,ip)
+    % x = GetGeomMap(gui_data.connection.recording.client,ip)
     % (ip = probe index, zero-indexed)
     % (commands often take js = jth stream (0=NI, 1=Onebox,2=imec probe)
     % (ip is the ith object of the stream, the ith probe)
