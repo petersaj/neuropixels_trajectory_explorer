@@ -753,6 +753,7 @@ trajectory_brain_intersect = ...
 
 % (if trajectory outside the brain, don't update)
 if isempty(trajectory_brain_intersect)
+    set(gui_data.probe_coordinates_text,'String','Probe trajectory is outside brain');
     return
 end
 
