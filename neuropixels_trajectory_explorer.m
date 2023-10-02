@@ -1949,7 +1949,7 @@ scientifica_position = str2num(readline(gui_data.connection.manipulator.client))
 writeline(gui_data.connection.manipulator.client,'ANGLE');
 scientifica_elevation_angle = str2num(readline(gui_data.connection.manipulator.client));
 % (convert coordinate order and direction)
-probe_tip = (scientifica_position([2,1,3]).*[1,-1,-1])'/1000;
+probe_tip = (scientifica_position([2,1,3]).*[1,-1,-1])'/100000; % reports as 1/10 microns
 probe_angle = [90,scientifica_elevation_angle]; % TO DO: currently assume 90 azimuth
 
 % (using length of recording sites, not full length of the probe from VCS)
