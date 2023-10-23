@@ -12,6 +12,8 @@ The program does not require any specific software. It was written and can be ru
   * Interface with New Scale manipulators to have a live visual of trajectories and recorded areas during an experiment
   * Display brain regions alongside data during recording (in Open Ephys or SpikeGLX)
 
+**For a demo, see [this video](https://www.youtube.com/watch?v=54VHDqzowwY&ab_channel=MatteoCarandini) (part of the [2023 UCL Neuropixels Course](https://www.ucl.ac.uk/neuropixels/training/2023-neuropixels-course))**
+
 
 **For instructions, see the [Wiki](https://github.com/petersaj/neuropixels_trajectory_explorer/wiki)**
 
