@@ -1600,7 +1600,7 @@ for curr_probe = 1:load_n_probes
         diff(probe_vector(3,:,curr_probe)));
     probe_angle = rad2deg([probe_azimuth_sph,probe_elevation_sph]) + ...
         [360*(probe_azimuth_sph<0),0];
-    gui_data.probe.angle{curr_probe} = probe_angle;
+    gui_data.probe(curr_probe).angle = probe_angle;
 
     % Update trajectory reference (draw line through point and DV 0 with max length)
     ml_lim = xlim(gui_data.handles.axes_atlas);
