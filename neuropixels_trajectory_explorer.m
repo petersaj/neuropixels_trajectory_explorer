@@ -2396,10 +2396,8 @@ selected_probe_idx = h == [gui_data.probe.line];
 % Color probe/axes by selected/unselected
 selected_color = [0,0,1];
 unselected_color = [0,0,0];
+set([gui_data.probe.line],'color',unselected_color);
 set(gui_data.probe(selected_probe_idx).line,'color',selected_color);
-if any(~selected_probe_idx)
-    set(gui_data.probe(~selected_probe_idx).line,'color',unselected_color);
-end
 
 % Set selected probe
 gui_data.selected_probe = find(selected_probe_idx);
