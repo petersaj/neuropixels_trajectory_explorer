@@ -1837,7 +1837,7 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     probe_vector = [probe_top, probe_tip] + manipulator_dv_offset;
 
     % Update angles
-    gui_data.probe.angle{curr_newscale_probe} = mpm2nte_angles;
+    gui_data.probe(curr_newscale_probe).angle = mpm2nte_angles;
 
     % Change probe location
     set(gui_data.probe(curr_newscale_probe).line, ...
