@@ -7,6 +7,24 @@
 % Instructions for use:
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
+%
+%
+%  WORKING ON 4-SHANKS HERE
+%   This is way more difficult that I had thought - all operations were
+%   done on probe lines, so this isn't scalable. 
+%
+%   Another thought - just operate on the trajectory, then have some
+%   definition of active recording sites, which can be shanks?
+%
+%   Or switch to recording sites instead of lines as shanks?
+%   --> maybe better: just operate on trajectory, re-draw sites whenever
+%   the trajectory is changed
+%
+%   started function to do this: update_recording_location
+%
+% Currently: L 1084 - define site geometry
+
+
 function neuropixels_trajectory_explorer
 
 %% Checks and initialize
@@ -342,25 +360,23 @@ switch eventdata.Key
         end
 end
 
-% Draw updated probe
+% Draw updated trajectory
 if any([ap_offset,ml_offset,probe_offset])
     % (AP/ML)
     set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
-        get(gui_data.probe(gui_data.selected_probe).trajectory,'XData') + ml_offset);
-    set(gui_data.probe(gui_data.selected_probe).line,'XData', ...
-        get(gui_data.probe(gui_data.selected_probe).line,'XData') + ml_offset);
+        get(gui_data.probe(gui_data.selected_probe).trajectory,'XData') + ml_offset); 
     set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
         get(gui_data.probe(gui_data.selected_probe).trajectory,'YData') + ap_offset);
-    set(gui_data.probe(gui_data.selected_probe).line,'YData', ...
-        get(gui_data.probe(gui_data.selected_probe).line,'YData') + ap_offset);
-    % (probe axis)
-    old_probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line, ...
-        {'XData','YData','ZData'})');
-    move_probe_vector = diff(old_probe_vector,[],2)./ ...
-        norm(diff(old_probe_vector,[],2))*probe_offset;
-    new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
-    set(gui_data.probe(gui_data.selected_probe).line,'XData',new_probe_vector(1,:), ...
-        'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
+ 
+    %%%%% CHANGE THIS? store depth property and re-calculate on new traj
+%     % (probe axis)
+%     old_probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line, ...
+%         {'XData','YData','ZData'})');
+%     move_probe_vector = diff(old_probe_vector,[],2)./ ...
+%         norm(diff(old_probe_vector,[],2))*probe_offset;
+%     new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
+%     set(gui_data.probe(gui_data.selected_probe).line,'XData',new_probe_vector(1,:), ...
+%         'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
 end
 % (angle)
 if any(angle_change)
@@ -656,22 +672,6 @@ probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line,{'XData
 
 % Update the probe trajectory reference angle
 
-% % (Old, unused: spherical/manipulator coordinates)
-% % Set new angle
-% new_angle = gui_data.probe.angle + angle_change;
-% gui_data.probe.angle = new_angle;
-%
-% [ap_max,dv_max,ml_max] = size(gui_data.tv);
-%
-% max_ref_length = sqrt(sum(([ap_max,dv_max,ml_max].^2)));
-%
-% probe_angle_rad = (gui_data.probe.angle./360)*2*pi;
-% [x,y,z] = sph2cart(pi-probe_angle_rad(1),probe_angle_rad(2),max_ref_length);
-%
-% new_probe_ref_top = [trajectory_vector(1,1),trajectory_vector(2,1),0];
-% new_probe_ref_bottom = new_probe_ref_top + [x,y,z];
-% new_trajectory_vector = [new_probe_ref_top;new_probe_ref_bottom]';
-
 % (New: cartesian coordinates of the trajectory bottom)
 new_trajectory_vector = [trajectory_vector(:,1), ...
     trajectory_vector(:,2) + [angle_change;0]];
@@ -701,10 +701,11 @@ probe_depth = sqrt(sum((trajectory_vector(:,1) - probe_vector(:,1)).^2));
 new_probe_vector_depth = (diff(new_probe_vector,[],2)./ ...
     norm(diff(new_probe_vector,[],2))*probe_depth) + new_probe_vector;
 
-set(gui_data.probe(gui_data.selected_probe).line, ...
-    'XData',new_probe_vector_depth(1,:), ...
-    'YData',new_probe_vector_depth(2,:), ...
-    'ZData',new_probe_vector_depth(3,:));
+%%%%% TEMP: REMOVE?
+% set(gui_data.probe(gui_data.selected_probe).line, ...
+%     'XData',new_probe_vector_depth(1,:), ...
+%     'YData',new_probe_vector_depth(2,:), ...
+%     'ZData',new_probe_vector_depth(3,:));
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -719,7 +720,42 @@ gui_data = guidata(probe_atlas_gui);
 
 % Get the positions of the probe and trajectory
 trajectory_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).trajectory,{'XData','YData','ZData'})');
-probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line,{'XData','YData','ZData'})');
+% probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line,{'XData','YData','ZData'})');
+
+%%%%%% WORKING: UPDATING TO 4-SHANK
+% NOTE: NOT USED YET, since this normally works just by getting trajectory
+% areas and then zooming as appropriate
+
+probe_vector = cell2mat(permute(get( ...
+    gui_data.probe(gui_data.selected_probe).line, ...
+    {'XData','YData','ZData'}),[2,3,1]));
+
+probe_vector = probe_vector(:,:,1); %%% TEMP: only using first shank
+
+% For each shank
+n_shanks = size(probe_vector,3);
+probe_areas = cell(1,n_shanks);
+for curr_shank = 1:n_shanks
+
+    probe_length = norm(diff(probe_vector(:,:,curr_shank),[],2));
+
+    probe_sample_coords = interp1([0,probe_length], ...
+        probe_vector(:,:,curr_shank)',0:.001:probe_length,'linear','extrap');
+
+    probe_sample_ccf_coords = transformPointsInverse(gui_data.ccf_bregma_tform, ...
+        probe_sample_coords);
+
+    probe_sample_ccf_idx = ...
+        sub2ind(size(gui_data.av), ...
+        round(probe_sample_ccf_coords(:,2)), ...
+        round(probe_sample_ccf_coords(:,3)), ...
+        round(probe_sample_ccf_coords(:,1)));
+
+    probe_areas{curr_shank} = gui_data.av(probe_sample_ccf_idx);
+end
+
+%%%%%%%%
+
 
 trajectory_n_coords = round(max(abs(diff(trajectory_vector,[],2)))*1000); % 1um resolution
 [trajectory_ml_coords_bregma,trajectory_ap_coords_bregma,trajectory_dv_coords_bregma] = deal( ...
@@ -933,6 +969,10 @@ set(gui_data.probe_coordinates_text,'Color','k')
 
 end
 
+function update_recording_location(h,eventdata,probe_atlas_gui)
+%%%%%%% NEW HERE: get trajectory, draw probe sites again
+end
+
 %% Control functions
 
 function view_coronal(h,eventdata,probe_atlas_gui)
@@ -1006,6 +1046,48 @@ probe_vector = [trajectory_vector(:,1),diff(trajectory_vector,[],2)./ ...
 probe_line = line(gui_data.handles.axes_atlas, ...
     probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
     'linewidth',5,'color','b','linestyle','-');
+
+%%%%% IN PROGRESS: 4-SHANK
+
+
+%%%%%% CHANGE THIS HERE: define 1) shank geometry and 2) site depth?
+% (geometry relative to trajectory line)
+% (D
+probe_length = 3.840;
+probe_vector = [];
+
+
+[probe_azimuth_sph,probe_elevation_sph] = cart2sph( ...
+        diff(probe_vector(2,:)), ...
+        diff(probe_vector(1,:)), ...
+        diff(probe_vector(3,:)));
+
+% Define shank spacing
+probe_spacing = linspace(-0.2,0.2,4);
+
+% Define shank plane
+[x,y,z] = sph2cart(probe_azimuth_sph+pi/2,0,1);
+shank_vector = [y;x;z];
+shank_vector_probe = probe_vector(:,1) + shank_vector;
+line([probe_vector(1,1),shank_vector_probe(1)], ...
+    [probe_vector(2,1),shank_vector_probe(2)], ...
+    [probe_vector(3,1),shank_vector_probe(3)],'color','m');
+
+% Get shank vectors
+delete(probe_line);
+probe_line = gobjects(4,1);
+shank_vectors = probe_vector + permute(shank_vector.*probe_spacing,[1,3,2]);
+for curr_shank = 1:size(shank_vectors,3)
+    probe_line(curr_shank) = ...
+        line(gui_data.handles.axes_atlas, ...
+        shank_vectors(1,:,curr_shank), ...
+        shank_vectors(2,:,curr_shank), ...
+        shank_vectors(3,:,curr_shank), ...
+        'linewidth',3,'color','b','linestyle','-');
+end
+
+
+%%%%%%%%%%%%%%%%
 
 % Draw probe insertion point
 probe_insertion_point = plot3(gui_data.handles.axes_atlas,...
@@ -2404,12 +2486,12 @@ function select_probe(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Get index of clicked probe
-selected_probe_idx = h == [gui_data.probe.line];
+selected_probe_idx = cellfun(@(x) any(h == x),{gui_data.probe.line});
 
 % Color probe/axes by selected/unselected
 selected_color = [0,0,1];
 unselected_color = [0,0,0];
-set([gui_data.probe.line],'color',unselected_color);
+set(vertcat(gui_data.probe.line),'color',unselected_color);
 set(gui_data.probe(selected_probe_idx).line,'color',selected_color);
 
 % Set selected probe
