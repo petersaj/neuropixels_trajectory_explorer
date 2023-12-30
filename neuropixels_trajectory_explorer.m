@@ -1048,11 +1048,40 @@ probe_line = line(gui_data.handles.axes_atlas, ...
     'linewidth',5,'color','b','linestyle','-');
 
 %%%%% IN PROGRESS: 4-SHANK
+%
+% TO DO HERE: define probe position by rotation/azimuth/elevation angles
+% and position relative to bregma. 
+% Then change all probe updating by these coordinates.
+
+% Define default trajectory vector
+reference_vector = [0,0,0;0,0,1]';
+shank_spacing = [linspace(-1,1,4);zeros(1,4);zeros(1,4)];
+shank_vector_ref = reference_vector + permute(shank_spacing,[1,3,2]);
+
+shank_vector = shank_vector_ref.*probe_length;
+
+% use this shank vector ref when creating it
+%%%%%%%%%%
+% use the below when setting angles in the keyboard controls
+% (have the thing that's moved be the trajectory, then back-calculate the
+% angles from that and apply to probe)
+probe_rot = [pi/4,pi/4,pi/2]; % (shank, azimuth, elevation)
+
+R_shank = [cos(probe_rot(1)) -sin(probe_rot(1)) 0; sin(probe_rot(1)) cos(probe_rot(1)) 0; 0 0 1];
+R_elevation = [1 0 0; 0 cos(probe_rot(2)) -sin(probe_rot(2)); 0 sin(probe_rot(2)) cos(probe_rot(2))];
+R_azimuth = [cos(probe_rot(3)) -sin(probe_rot(3)) 0; sin(probe_rot(3)) cos(probe_rot(3)) 0; 0 0 1];
+
+shank_vector = R_azimuth*R_elevation*R_shank*reshape(shank_vector_ref,3,[]);
+
+figure;
+a = reshape(shank_vector_ref,3,[]);
+line(a(1,:),a(2,:),a(3,:),'color','k','linewidth',2);
+line(shank_vector(1,:),shank_vector(2,:),shank_vector(3,:),'color','b','linewidth',2);
+%%%%%%%%%%%%
 
 
 %%%%%% CHANGE THIS HERE: define 1) shank geometry and 2) site depth?
 % (geometry relative to trajectory line)
-% (D
 probe_length = 3.840;
 probe_vector = [];
 
