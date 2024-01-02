@@ -326,62 +326,89 @@ step_size = 0.1;
 % Update probe coordinates
 ap_offset = 0;
 ml_offset = 0;
-probe_offset = 0;
-angle_change = [0;0];
+depth_offset = 0;
+angle_ap_offset = 0;
+angle_ml_offset = 0;
 
 switch eventdata.Key
     case 'uparrow'
         if isempty(eventdata.Modifier)
             ap_offset = step_size;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_change = [0;step_size];
+            angle_ap_offset = step_size;
         elseif any(strcmp(eventdata.Modifier,'alt'))
-            probe_offset = -step_size;
+            gui_data.probe(gui_data.selected_probe).depth = ...
+                gui_data.probe(gui_data.selected_probe).depth - step_size;
+            guidata(probe_atlas_gui,gui_data);
         end
     case 'downarrow'
         if isempty(eventdata.Modifier)
             ap_offset = -step_size;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_change = [0;-step_size];
+            angle_ap_offset = -step_size;
         elseif any(strcmp(eventdata.Modifier,'alt'))
-            probe_offset = step_size;
+            gui_data.probe(gui_data.selected_probe).depth = ...
+                gui_data.probe(gui_data.selected_probe).depth + step_size;
+            guidata(probe_atlas_gui,gui_data);
         end
     case 'leftarrow'
         if isempty(eventdata.Modifier)
             ml_offset = -step_size;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_change = [-step_size;0];
+            angle_ml_offset = -step_size;
         end
     case 'rightarrow'
         if isempty(eventdata.Modifier)
             ml_offset = step_size;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_change = [step_size;0];
+            angle_ml_offset = step_size;
         end
+    case 'r'
+        gui_data.probe(gui_data.selected_probe).angle = ...
+            gui_data.probe(gui_data.selected_probe).angle + [0;0;10];
+        guidata(probe_atlas_gui,gui_data);
+    case 'e'
+        gui_data.probe(gui_data.selected_probe).angle = ...
+            gui_data.probe(gui_data.selected_probe).angle + [0;0;-10];
+        guidata(probe_atlas_gui,gui_data);
+
 end
 
 % Draw updated trajectory
-if any([ap_offset,ml_offset,probe_offset])
-    % (AP/ML)
-    set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
-        get(gui_data.probe(gui_data.selected_probe).trajectory,'XData') + ml_offset); 
-    set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
-        get(gui_data.probe(gui_data.selected_probe).trajectory,'YData') + ap_offset);
- 
-    %%%%% CHANGE THIS? store depth property and re-calculate on new traj
-%     % (probe axis)
-%     old_probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line, ...
-%         {'XData','YData','ZData'})');
-%     move_probe_vector = diff(old_probe_vector,[],2)./ ...
-%         norm(diff(old_probe_vector,[],2))*probe_offset;
-%     new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
-%     set(gui_data.probe(gui_data.selected_probe).line,'XData',new_probe_vector(1,:), ...
-%         'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
-end
+old_trajectory_vector = get(gui_data.probe(gui_data.selected_probe).trajectory,{'XData','YData'});
+
+set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
+    old_trajectory_vector{1} + repmat(ml_offset,1,2) + [0,angle_ml_offset]);
+set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
+    old_trajectory_vector{2} + repmat(ap_offset,1,2) + [0,angle_ap_offset])
+
+
+%%% (OLD)
+% if any([ap_offset,ml_offset,probe_offset])
+%     % (AP/ML)
+%     set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
+%         get(gui_data.probe(gui_data.selected_probe).trajectory,'XData') + ml_offset); 
+%     set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
+%         get(gui_data.probe(gui_data.selected_probe).trajectory,'YData') + ap_offset);
+%  
+%     %%%%% CHANGE THIS? store depth property and re-calculate on new traj
+% %     % (probe axis)
+% %     old_probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line, ...
+% %         {'XData','YData','ZData'})');
+% %     move_probe_vector = diff(old_probe_vector,[],2)./ ...
+% %         norm(diff(old_probe_vector,[],2))*probe_offset;
+% %     new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
+% %     set(gui_data.probe(gui_data.selected_probe).line,'XData',new_probe_vector(1,:), ...
+% %         'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
+% end
+%%%%%%% REMOVE IF NEW SYSTEM WORKS
 % (angle)
-if any(angle_change)
-    gui_data = update_probe_angle(probe_atlas_gui,angle_change);
-end
+% if any(angle_change)
+%     gui_data = update_probe_angle(probe_atlas_gui,angle_change);
+% end
+
+% Update probe position (relative to trajectory)
+gui_data = update_probe_position(probe_atlas_gui);
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -661,51 +688,55 @@ update_probe_coordinates(probe_atlas_gui);
 end
 
 
-function gui_data = update_probe_angle(probe_atlas_gui,angle_change)
+function gui_data = update_probe_position(probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Get the positions of the probe and trajectory reference
-trajectory_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).trajectory,{'XData','YData','ZData'})');
-probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line,{'XData','YData','ZData'})');
+% Get the trajectory angle
+trajectory_vector = cell2mat( ...
+    get(gui_data.probe(gui_data.selected_probe).trajectory, ...
+    {'XData','YData','ZData'})');
 
-% Update the probe trajectory reference angle
+[trajectory_azimuth_sph,trajectory_elevation_sph] = cart2sph( ...
+    diff(trajectory_vector(1,:)), ...
+    diff(trajectory_vector(2,:)), ...
+    diff(trajectory_vector(3,:)));
 
-% (New: cartesian coordinates of the trajectory bottom)
-new_trajectory_vector = [trajectory_vector(:,1), ...
-    trajectory_vector(:,2) + [angle_change;0]];
+% Get probe shank coordinates relative to rotation 
+probe_rotation_rad = deg2rad(gui_data.probe(gui_data.selected_probe).angle(3));
+probe_angle = [probe_rotation_rad, ...
+    pi/2-trajectory_elevation_sph, ...
+    trajectory_azimuth_sph+pi/2];
 
-% Calculate angle and rotate to convention:
-% azimuth: 0-360 (clockwise from back)
-% elevation: 0-90 (horizontal to vertical)
-[probe_azimuth_sph,probe_elevation_sph] = cart2sph( ...
-    diff(new_trajectory_vector(2,:)), ...
-    diff(new_trajectory_vector(1,:)), ...
-    diff(new_trajectory_vector(3,:)));
-probe_angle = rad2deg([probe_azimuth_sph,probe_elevation_sph]) + ...
-    [360*(probe_azimuth_sph<0),0];
-gui_data.probe(gui_data.selected_probe).angle = probe_angle;
+% Create rotation transform matricies
+R_shank = [cos(probe_angle(1)) -sin(probe_angle(1)) 0; sin(probe_angle(1)) cos(probe_angle(1)) 0; 0 0 1];
+R_elevation = [1 0 0; 0 cos(probe_angle(2)) -sin(probe_angle(2)); 0 sin(probe_angle(2)) cos(probe_angle(2))];
+R_azimuth = [cos(probe_angle(3)) -sin(probe_angle(3)) 0; sin(probe_angle(3)) cos(probe_angle(3)) 0; 0 0 1];
+R_probe = R_azimuth*R_elevation*R_shank;
 
-set(gui_data.probe(gui_data.selected_probe).trajectory, ...
-    'XData',new_trajectory_vector(1,:), ...
-    'YData',new_trajectory_vector(2,:), ...
-    'ZData',new_trajectory_vector(3,:));
+% Rotate and translate default shanks to follow trajectory
+shank_translate = trajectory_vector(:,1); % (move to trajectory top)
+shank_ref_vec = gui_data.probe(gui_data.selected_probe).reference_vector;
+shank_ref_vec_flat = reshape(permute(shank_ref_vec,[3,1,2]),3,[]);
+shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
+shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
-% Update probe (retain depth)
-new_probe_vector = [new_trajectory_vector(:,1),diff(new_trajectory_vector,[],2)./ ...
-    norm(diff(new_trajectory_vector,[],2))*gui_data.probe(gui_data.selected_probe).length ...
-    + new_trajectory_vector(:,1)];
+% %%%%%% TO DO: evaluate vector along depth
+% Get trajectory top (translation point) depth relative to insertion point
+insertion_point = cell2mat(get(gui_data.probe(1).insertion_point, ...
+    {'XData','YData','ZData'}));
+shank_translate_depth = -pdist2(shank_translate',insertion_point);
+%%%%%%%%%%%%%%%%% CURRENTLY WORKING HERE
+% (I was here - interp vector with top at translate depth to set depth)
+gui_data.probe(1).depth
 
-probe_depth = sqrt(sum((trajectory_vector(:,1) - probe_vector(:,1)).^2));
-new_probe_vector_depth = (diff(new_probe_vector,[],2)./ ...
-    norm(diff(new_probe_vector,[],2))*probe_depth) + new_probe_vector;
-
-%%%%% TEMP: REMOVE?
-% set(gui_data.probe(gui_data.selected_probe).line, ...
-%     'XData',new_probe_vector_depth(1,:), ...
-%     'YData',new_probe_vector_depth(2,:), ...
-%     'ZData',new_probe_vector_depth(3,:));
+% Update shank positions
+for curr_shank = 1:size(shank_vector,2)
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
+end
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -1032,20 +1063,20 @@ else
 end
 
 % Draw probe trajectory
-probe_ref_top = [0,0,-0.1];
-probe_ref_bottom = [0,0,6];
-trajectory_vector = [probe_ref_top',probe_ref_bottom'];
+trajectory_top = [0,0,-0.1];
+trajectory_bottom = [0,0,6];
+trajectory_vector = [trajectory_top',trajectory_bottom'];
 trajectory_line = line(gui_data.handles.axes_atlas, ...
     trajectory_vector(1,:),trajectory_vector(2,:),trajectory_vector(3,:), ...
     'linewidth',1.5,'color','r','linestyle','--');
 
 % Draw probe recording length
-probe_length = 3.840; % IMEC phase 3 (in mm)
-probe_vector = [trajectory_vector(:,1),diff(trajectory_vector,[],2)./ ...
-    norm(diff(trajectory_vector,[],2))*probe_length + trajectory_vector(:,1)];
-probe_line = line(gui_data.handles.axes_atlas, ...
-    probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
-    'linewidth',5,'color','b','linestyle','-');
+% probe_length = 3.840; % IMEC phase 3 (in mm)
+% probe_vector = [trajectory_vector(:,1),diff(trajectory_vector,[],2)./ ...
+%     norm(diff(trajectory_vector,[],2))*probe_length + trajectory_vector(:,1)];
+% probe_line = line(gui_data.handles.axes_atlas, ...
+%     probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
+%     'linewidth',5,'color','b','linestyle','-');
 
 %%%%% IN PROGRESS: 4-SHANK
 %
@@ -1054,85 +1085,42 @@ probe_line = line(gui_data.handles.axes_atlas, ...
 % Then change all probe updating by these coordinates.
 
 % Define default trajectory vector
-reference_vector = [0,0,0;0,0,1]';
-shank_spacing = [linspace(-1,1,4);zeros(1,4);zeros(1,4)];
-shank_vector_ref = reference_vector + permute(shank_spacing,[1,3,2]);
+probe_default_vector = [0,0,0;0,0,1]';
 
-shank_vector = shank_vector_ref.*probe_length;
+% % Neuropixels 1.0
+% probe_length = 3.840;
+% shank_vector = permute(probe_default_vector.*probe_length,[3,2,1]);
 
-% use this shank vector ref when creating it
-%%%%%%%%%%
-% use the below when setting angles in the keyboard controls
-% (have the thing that's moved be the trajectory, then back-calculate the
-% angles from that and apply to probe)
-probe_rot = [pi/4,pi/4,pi/2]; % (shank, azimuth, elevation)
-
-R_shank = [cos(probe_rot(1)) -sin(probe_rot(1)) 0; sin(probe_rot(1)) cos(probe_rot(1)) 0; 0 0 1];
-R_elevation = [1 0 0; 0 cos(probe_rot(2)) -sin(probe_rot(2)); 0 sin(probe_rot(2)) cos(probe_rot(2))];
-R_azimuth = [cos(probe_rot(3)) -sin(probe_rot(3)) 0; sin(probe_rot(3)) cos(probe_rot(3)) 0; 0 0 1];
-
-shank_vector = R_azimuth*R_elevation*R_shank*reshape(shank_vector_ref,3,[]);
-
-figure;
-a = reshape(shank_vector_ref,3,[]);
-line(a(1,:),a(2,:),a(3,:),'color','k','linewidth',2);
-line(shank_vector(1,:),shank_vector(2,:),shank_vector(3,:),'color','b','linewidth',2);
-%%%%%%%%%%%%
-
-
-%%%%%% CHANGE THIS HERE: define 1) shank geometry and 2) site depth?
-% (geometry relative to trajectory line)
+% Neuropixels 2.0
 probe_length = 3.840;
-probe_vector = [];
+shank_spacing = [linspace(-0.25,0.25,4);zeros(1,4);zeros(1,4)];
+shank_vector_ref = probe_default_vector + permute(shank_spacing,[1,3,2]);
+shank_vector = permute(shank_vector_ref.*probe_length,[2,3,1]);
 
-
-[probe_azimuth_sph,probe_elevation_sph] = cart2sph( ...
-        diff(probe_vector(2,:)), ...
-        diff(probe_vector(1,:)), ...
-        diff(probe_vector(3,:)));
-
-% Define shank spacing
-probe_spacing = linspace(-0.2,0.2,4);
-
-% Define shank plane
-[x,y,z] = sph2cart(probe_azimuth_sph+pi/2,0,1);
-shank_vector = [y;x;z];
-shank_vector_probe = probe_vector(:,1) + shank_vector;
-line([probe_vector(1,1),shank_vector_probe(1)], ...
-    [probe_vector(2,1),shank_vector_probe(2)], ...
-    [probe_vector(3,1),shank_vector_probe(3)],'color','m');
-
-% Get shank vectors
-delete(probe_line);
-probe_line = gobjects(4,1);
-shank_vectors = probe_vector + permute(shank_vector.*probe_spacing,[1,3,2]);
-for curr_shank = 1:size(shank_vectors,3)
-    probe_line(curr_shank) = ...
-        line(gui_data.handles.axes_atlas, ...
-        shank_vectors(1,:,curr_shank), ...
-        shank_vectors(2,:,curr_shank), ...
-        shank_vectors(3,:,curr_shank), ...
-        'linewidth',3,'color','b','linestyle','-');
-end
-
-
-%%%%%%%%%%%%%%%%
+% Draw probe
+probe_line = line( ...
+    shank_vector(:,:,1), ...
+    shank_vector(:,:,2), ...
+    shank_vector(:,:,3), ...
+    'color','m','linewidth',2);
 
 % Draw probe insertion point
 probe_insertion_point = plot3(gui_data.handles.axes_atlas,...
-    probe_ref_top(1),probe_ref_top(2), ...
-    probe_ref_top(3),'.r','MarkerSize',30);
+    trajectory_top(1),trajectory_top(2), ...
+    trajectory_top(3),'.r','MarkerSize',30);
 
 % Set up click-to-select (probe line or area axes)
 set(probe_line,'ButtonDownFcn',{@select_probe,probe_atlas_gui});
 set(probe_line,'Tag','rotate_clickable'); % (even during rotate3d)
 
 % Store probe data and axes
-gui_data.probe(new_probe_idx).trajectory = trajectory_line; % Probe reference line on 3D atlas
+gui_data.probe(new_probe_idx).trajectory = trajectory_line; % Trajectory line on 3D atlas
+gui_data.probe(new_probe_idx).reference_vector = shank_vector; % Default probe position
 gui_data.probe(new_probe_idx).line = probe_line; % Probe reference line on 3D atlas
 gui_data.probe(new_probe_idx).insertion_point = probe_insertion_point; % Probe reference line on 3D atlas
 gui_data.probe(new_probe_idx).length = probe_length; % Length of probe
-gui_data.probe(new_probe_idx).angle = [0;90]; % Probe angles in ML/DV
+gui_data.probe(new_probe_idx).depth = probe_length;
+gui_data.probe(new_probe_idx).angle = [0;90;0]; % azimuth, elevation, rotation
 
 % Set default recording slot (order of creation)
 gui_data.probe(new_probe_idx).recording_slot = new_probe_idx;
