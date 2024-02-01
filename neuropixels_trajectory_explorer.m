@@ -1506,48 +1506,61 @@ probe_positions_ccf = squeeze(mat2cell(permute(cat(3, ...
     probe_ap_ccf,probe_dv_ccf,probe_ml_ccf),[3,2,1]), ...
     3,2,ones(n_probes,1)));
 
+% Get max length across the brain
+ml_lim = xlim(gui_data.handles.axes_atlas);
+ap_lim = ylim(gui_data.handles.axes_atlas);
+dv_lim = zlim(gui_data.handles.axes_atlas);
+max_brain_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
+
 % Get positions along each probe
 probe_areas = cell(n_probes,1);
 for curr_probe = 1:n_probes
 
-    % Sample areas along probe every 1um
+    % Sample areas along probe every 1um, convert to valid CCF indicies
     probe_vector = cell2mat(get(gui_data.probe(curr_probe).line,{'XData','YData','ZData'})');
-    probe_n_coords = round(norm(diff(probe_vector,[],2))*1000);
-    probe_coords_depth = linspace(0,gui_data.probe.length(curr_probe)*1000-1,probe_n_coords);
+    probe_sample_coords_bregma = interp1([0,norm(diff(probe_vector,[],2))],probe_vector', ...
+        -max_brain_length:0.001:max_brain_length,'linear','extrap');
 
-    [probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
-        linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
-        linspace(probe_vector(2,1),probe_vector(2,2),probe_n_coords), ...
-        linspace(probe_vector(3,1),probe_vector(3,2),probe_n_coords));
-
-    [probe_ml_coords_ccf,probe_ap_coords_ccf,probe_dv_coords_ccf] = ...
+    % Transform bregma to CCF coordinates and re-order to CCF orientation
+    probe_sample_coords_ccf_apmldv = round( ...
         transformPointsInverse(gui_data.ccf_bregma_tform, ...
-        probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma);
+        probe_sample_coords_bregma));
+    probe_sample_coords_ccf = probe_sample_coords_ccf_apmldv(:,[2,3,1]);
 
-    probe_coords_ccf = ...
-        round([probe_ap_coords_ccf;probe_dv_coords_ccf;probe_ml_coords_ccf]);
-    probe_coords_ccf_inbounds = all(probe_coords_ccf > 0 & ...
-        probe_coords_ccf <= size(gui_data.av)',1);
+    coord_inbounds = find(all(probe_sample_coords_ccf > 0 & ...
+        probe_sample_coords_ccf <= size(gui_data.av),2));
 
-    probe_location_idx = ...
+    probe_sample_idx_ccf = ...
         sub2ind(size(gui_data.av), ...
-        round(probe_ap_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_dv_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_ml_coords_ccf(probe_coords_ccf_inbounds)))';
+        probe_sample_coords_ccf(coord_inbounds,1), ...
+        probe_sample_coords_ccf(coord_inbounds,2), ...
+        probe_sample_coords_ccf(coord_inbounds,3));
 
     % Get boundaries of areas and area IDs
-    probe_area_idx_sampled = ones(probe_n_coords,1);
-    probe_area_idx_sampled(probe_coords_ccf_inbounds) = gui_data.av(probe_location_idx);
-    probe_area_bins = [1;(find(diff(probe_area_idx_sampled)~= 0)+1);probe_n_coords];
-    probe_area_boundaries = [probe_area_bins(1:end-1),probe_area_bins(2:end)];
+    probe_sample_areas = gui_data.av(probe_sample_idx_ccf);
+    
+    probe_sample_areas_brainidx = find(probe_sample_areas ~= 1);
+    probe_sample_area_boundaries = ...
+        [1;find(diff(double(probe_sample_areas(probe_sample_areas_brainidx)))~=0)+1; ...
+        length(probe_sample_areas_brainidx)];
+    probe_area_idx = probe_sample_areas(probe_sample_areas_brainidx(probe_sample_area_boundaries(1:end-1)));
 
-    probe_area_idx = probe_area_idx_sampled(probe_area_boundaries(:,1));
+    % Get distance from tip for each sample coordinate
+    % (signed distance: towards tip +, away from tip -)
+    stored_sample_idx = coord_inbounds(probe_sample_areas_brainidx(probe_sample_area_boundaries));
+    probe_tip_distance = vecnorm((probe_vector(:,2)' - ...
+        probe_sample_coords_bregma(stored_sample_idx,:))')';
+    probe_direction = sign(norm(diff(probe_vector,[],2)) - ...
+        (vecnorm((probe_vector(:,1)' - ...
+        probe_sample_coords_bregma(stored_sample_idx,:))')'));
 
-    % Store structure tree entries for probe areas (ammend start depth for each area)
-    store_areas_idx = probe_area_idx > 1; % only use areas in brain (idx > 1)
-    curr_probe_areas = gui_data.st(probe_area_idx(store_areas_idx),:);
-    curr_probe_areas.probe_depth = probe_coords_depth(probe_area_boundaries(store_areas_idx,:));
+    probe_tip_distance_signed = probe_tip_distance.*probe_direction;
 
+    % Store probe areas and boundaries (in distance from tip)
+    curr_probe_areas = gui_data.st(probe_area_idx,:);
+    curr_probe_areas.probe_tip_distance = ...
+        [probe_tip_distance_signed(1:end-1), ...
+        probe_tip_distance_signed(2:end)];
     probe_areas{curr_probe} = curr_probe_areas;
 
 end
