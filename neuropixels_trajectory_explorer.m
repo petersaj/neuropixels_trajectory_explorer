@@ -380,7 +380,7 @@ old_trajectory_vector = get(gui_data.probe(gui_data.selected_probe).trajectory,{
 set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
     old_trajectory_vector{1} + repmat(ml_offset,1,2) + [0,angle_ml_offset]);
 set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
-    old_trajectory_vector{2} + repmat(ap_offset,1,2) + [0,angle_ap_offset])
+    old_trajectory_vector{2} + repmat(ap_offset,1,2) + [0,angle_ap_offset]);
 
 
 %%% (OLD)
@@ -722,20 +722,23 @@ shank_ref_vec_flat = reshape(permute(shank_ref_vec,[3,1,2]),3,[]);
 shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
 shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
-% %%%%%% TO DO: evaluate vector along depth
-% Get trajectory top (translation point) depth relative to insertion point
+% Get depth relative to insertion point
 insertion_point = cell2mat(get(gui_data.probe(1).insertion_point, ...
     {'XData','YData','ZData'}));
 shank_translate_depth = -pdist2(shank_translate',insertion_point);
-%%%%%%%%%%%%%%%%% CURRENTLY WORKING HERE
-% (I was here - interp vector with top at translate depth to set depth)
-gui_data.probe(1).depth
 
-% Update shank positions
-for curr_shank = 1:size(shank_vector,2)
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
+depth_ref = [0,gui_data.probe(gui_data.selected_probe).length] + shank_translate_depth;
+depth_curr = depth_ref + gui_data.probe(gui_data.selected_probe).depth;
+
+% Interpolate shank position at depth positions
+shank_coords = reshape(interp1(depth_ref,reshape(shank_vector,2,[]), ...
+    depth_curr,'linear','extrap'),size(shank_vector));
+
+% Update shank line positions
+for curr_shank = 1:size(shank_coords,2)
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_coords(:,curr_shank,1);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_coords(:,curr_shank,2);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_coords(:,curr_shank,3);
 end
 
 % Upload gui_data
@@ -1093,12 +1096,12 @@ probe_default_vector = [0,0,0;0,0,1]';
 
 % Neuropixels 2.0
 probe_length = 3.840;
-shank_spacing = [linspace(-0.25,0.25,4);zeros(1,4);zeros(1,4)];
-shank_vector_ref = probe_default_vector + permute(shank_spacing,[1,3,2]);
-shank_vector = permute(shank_vector_ref.*probe_length,[2,3,1]);
+shank_spacing = [linspace(-0.375,0.375,4);zeros(1,4);zeros(1,4)];
+shank_vector = permute(probe_default_vector.*probe_length + ...
+    permute(shank_spacing,[1,3,2]),[2,3,1]);
 
 % Draw probe
-probe_line = line( ...
+probe_line = line(gui_data.handles.axes_atlas, ...
     shank_vector(:,:,1), ...
     shank_vector(:,:,2), ...
     shank_vector(:,:,3), ...
