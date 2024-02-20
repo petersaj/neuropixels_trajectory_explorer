@@ -22,7 +22,9 @@
 %
 %   started function to do this: update_recording_location
 %
-% Currently: L 1084 - define site geometry
+%
+% Currently:
+% L 1084 - define site geometry
 
 
 function neuropixels_trajectory_explorer
@@ -382,34 +384,6 @@ set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
 set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
     old_trajectory_vector{2} + repmat(ap_offset,1,2) + [0,angle_ap_offset]);
 
-
-%%% (OLD)
-% if any([ap_offset,ml_offset,probe_offset])
-%     % (AP/ML)
-%     set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
-%         get(gui_data.probe(gui_data.selected_probe).trajectory,'XData') + ml_offset); 
-%     set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
-%         get(gui_data.probe(gui_data.selected_probe).trajectory,'YData') + ap_offset);
-%  
-%     %%%%% CHANGE THIS? store depth property and re-calculate on new traj
-% %     % (probe axis)
-% %     old_probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line, ...
-% %         {'XData','YData','ZData'})');
-% %     move_probe_vector = diff(old_probe_vector,[],2)./ ...
-% %         norm(diff(old_probe_vector,[],2))*probe_offset;
-% %     new_probe_vector = bsxfun(@plus,old_probe_vector,move_probe_vector);
-% %     set(gui_data.probe(gui_data.selected_probe).line,'XData',new_probe_vector(1,:), ...
-% %         'YData',new_probe_vector(2,:),'ZData',new_probe_vector(3,:));
-% end
-%%%%%%% REMOVE IF NEW SYSTEM WORKS
-% (angle)
-% if any(angle_change)
-%     gui_data = update_probe_angle(probe_atlas_gui,angle_change);
-% end
-
-% Update probe position (relative to trajectory)
-gui_data = update_probe_position(probe_atlas_gui);
-
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
 
@@ -422,8 +396,9 @@ gui_data = guidata(probe_atlas_gui);
 
 switch eventdata.Key
     case {'rightarrow','leftarrow','uparrow','downarrow'}
-        % Update the probe info/slice on arrow release
+        % Update the probe coordinates/position and slice on arrow release
         update_probe_coordinates(probe_atlas_gui);
+        update_probe_position(probe_atlas_gui);
         update_slice(probe_atlas_gui);
 end
 
@@ -723,12 +698,16 @@ shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
 shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
 % Get depth relative to insertion point
-insertion_point = cell2mat(get(gui_data.probe(1).insertion_point, ...
+insertion_point = cell2mat(get( ...
+    gui_data.probe(gui_data.selected_probe).insertion_point, ...
     {'XData','YData','ZData'}));
 shank_translate_depth = -pdist2(shank_translate',insertion_point);
+depth_ref = [0,gui_data.probe(gui_data.selected_probe).length] + ...
+    shank_translate_depth;
 
-depth_ref = [0,gui_data.probe(gui_data.selected_probe).length] + shank_translate_depth;
-depth_curr = depth_ref + gui_data.probe(gui_data.selected_probe).depth;
+% Get target depth
+depth_curr = [-gui_data.probe(gui_data.selected_probe).length,0] + ...
+    gui_data.probe(gui_data.selected_probe).depth;
 
 % Interpolate shank position at depth positions
 shank_coords = reshape(interp1(depth_ref,reshape(shank_vector,2,[]), ...
@@ -759,169 +738,166 @@ trajectory_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).traject
 %%%%%% WORKING: UPDATING TO 4-SHANK
 % NOTE: NOT USED YET, since this normally works just by getting trajectory
 % areas and then zooming as appropriate
+% 
+% Instead: interpolate shanks all the way up/down, then zoom as appropriate
 
-probe_vector = cell2mat(permute(get( ...
+% Get current probe location
+probe_vector = permute(cell2mat(permute(get( ...
     gui_data.probe(gui_data.selected_probe).line, ...
-    {'XData','YData','ZData'}),[2,3,1]));
+    {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);
 
-probe_vector = probe_vector(:,:,1); %%% TEMP: only using first shank
-
-% For each shank
 n_shanks = size(probe_vector,3);
-probe_areas = cell(1,n_shanks);
-for curr_shank = 1:n_shanks
 
-    probe_length = norm(diff(probe_vector(:,:,curr_shank),[],2));
+% Interpolate to extremes of probe range
+ml_lim = xlim(gui_data.handles.axes_atlas);
+ap_lim = ylim(gui_data.handles.axes_atlas);
+dv_lim = zlim(gui_data.handles.axes_atlas);
+max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
 
-    probe_sample_coords = interp1([0,probe_length], ...
-        probe_vector(:,:,curr_shank)',0:.001:probe_length,'linear','extrap');
+sample_points = (-max_ref_length:0.001:max_ref_length)';
+probe_sample_points_bregma = reshape( ...
+    interp1([0,gui_data.probe(gui_data.selected_probe).length], ...
+    reshape(probe_vector,2,[]), ...
+    sample_points,'linear','extrap'), ...
+    [length(sample_points),size(probe_vector,[2,3])]);
 
-    probe_sample_ccf_coords = transformPointsInverse(gui_data.ccf_bregma_tform, ...
-        probe_sample_coords);
+probe_sample_points_ccf_flat = ...
+    round(transformPointsInverse(gui_data.ccf_bregma_tform, ...
+    reshape(permute(probe_sample_points_bregma,[1,3,2]),[],3)));
 
-    probe_sample_ccf_idx = ...
+inbounds_idx = all(probe_sample_points_ccf_flat > 0 & ...
+    probe_sample_points_ccf_flat <= size(gui_data.av,[3,1,2]),2);
+
+probe_sample_ccf_idx = ...
         sub2ind(size(gui_data.av), ...
-        round(probe_sample_ccf_coords(:,2)), ...
-        round(probe_sample_ccf_coords(:,3)), ...
-        round(probe_sample_ccf_coords(:,1)));
+        probe_sample_points_ccf_flat(inbounds_idx,2), ...
+        probe_sample_points_ccf_flat(inbounds_idx,3), ...
+        probe_sample_points_ccf_flat(inbounds_idx,1));
 
-    probe_areas{curr_shank} = gui_data.av(probe_sample_ccf_idx);
+probe_areas = nan(length(sample_points),n_shanks);
+probe_areas(inbounds_idx) = gui_data.av(probe_sample_ccf_idx);
+
+% Get sample points depth relative to insertion depth
+plot_probe_areas_idx = find(any(probe_areas > 1,2));
+probe_areas_plot = probe_areas(plot_probe_areas_idx,:);
+
+probe_areas_plot_depth = sample_points(plot_probe_areas_idx) + ...
+    gui_data.probe(gui_data.selected_probe).depth - ...
+    gui_data.probe(gui_data.selected_probe).length;
+
+% Get colors for all areas (draw white lines between areas)
+probe_areas_hexcolors = gui_data.st.color_hex_triplet(probe_areas_plot);
+probe_areas_rgbcolors = cell2mat(cellfun(@(x) ...
+    permute(hex2dec({x(1:2),x(3:4),x(5:6)})'./255,[1,3,2]), ...
+    probe_areas_hexcolors,'uni',false));
+for curr_shank = 1:n_shanks
+    probe_areas_rgbcolors(imdilate(boundarymask( ...
+        probe_areas_plot(:,curr_shank)),ones(20,1)),curr_shank,:) = 1;
 end
 
-%%%%%%%%
+% Get boundaries, centers, and labels for all areas
+if ~isfield(gui_data,'display_region_name')
+    gui_data.display_region_name = 'acronym';
+end
 
+probe_area_boundaries = cell(n_shanks,1);
+probe_area_centers = cell(n_shanks,1);
+probe_area_labels = cell(n_shanks,1);
+for curr_shank = 1:n_shanks
 
-trajectory_n_coords = round(max(abs(diff(trajectory_vector,[],2)))*1000); % 1um resolution
-[trajectory_ml_coords_bregma,trajectory_ap_coords_bregma,trajectory_dv_coords_bregma] = deal( ...
-    linspace(trajectory_vector(1,1),trajectory_vector(1,2),trajectory_n_coords), ...
-    linspace(trajectory_vector(2,1),trajectory_vector(2,2),trajectory_n_coords), ...
-    linspace(trajectory_vector(3,1),trajectory_vector(3,2),trajectory_n_coords));
+    shank_areas_plot = probe_areas_plot(:,curr_shank);
+    shank_areas_boundaries_idx = intersect(unique( ...
+        [find(shank_areas_plot ~= 1,1,'first'); ...
+        find(diff(shank_areas_plot) ~= 0); ...
+        find(shank_areas_plot ~= 1,1,'last')]), ...
+        find(shank_areas_plot ~= 1));
+    shank_areas_centers_idx = round(shank_areas_boundaries_idx(1:end-1) + ...
+        diff(shank_areas_boundaries_idx)/2);
 
-% Transform bregma coordinates to CCF coordinates
-[trajectory_ml_coords_ccf,trajectory_ap_coords_ccf,trajectory_dv_coords_ccf] = ...
-    transformPointsInverse(gui_data.ccf_bregma_tform, ...
-    trajectory_ml_coords_bregma,trajectory_ap_coords_bregma,trajectory_dv_coords_bregma);
+    probe_area_boundaries{curr_shank} = ...
+        probe_areas_plot_depth(shank_areas_boundaries_idx);
+    probe_area_centers{curr_shank} = ...
+        probe_areas_plot_depth(shank_areas_centers_idx);
+    probe_area_labels{curr_shank} = ...
+        gui_data.st.(gui_data.display_region_name)(probe_areas_plot(shank_areas_centers_idx,curr_shank));
 
-% Get brain labels across the probe and trajectory, and intersection with brain
-trajectory_coords_ccf = ...
-    round([trajectory_ap_coords_ccf;trajectory_dv_coords_ccf;trajectory_ml_coords_ccf]);
-trajectory_coords_ccf_inbounds = all(trajectory_coords_ccf > 0 & ...
-    trajectory_coords_ccf <= size(gui_data.av)',1);
+end
 
-trajectory_idx = ...
-    sub2ind(size(gui_data.av), ...
-    round(trajectory_ap_coords_ccf(trajectory_coords_ccf_inbounds)), ...
-    round(trajectory_dv_coords_ccf(trajectory_coords_ccf_inbounds)), ...
-    round(trajectory_ml_coords_ccf(trajectory_coords_ccf_inbounds)));
-trajectory_areas = ones(trajectory_n_coords,1); % (out of CCF = 1: non-brain)
-trajectory_areas(trajectory_coords_ccf_inbounds) = gui_data.av(trajectory_idx);
+% Get insertion coordinate
+ref_shank = 1; % to do: define this somewhere else
+insertion_point = probe_sample_points_bregma( ...
+    plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
 
-trajectory_brain_idx = find(trajectory_areas > 1,1);
-trajectory_brain_intersect = ...
-    [trajectory_ml_coords_bregma(trajectory_brain_idx), ...
-    trajectory_ap_coords_bregma(trajectory_brain_idx), ...
-    trajectory_dv_coords_bregma(trajectory_brain_idx)]';
-
-% (if trajectory outside the brain, don't update)
-if isempty(trajectory_brain_intersect)
+% (if there's no insertion coordinate, don't update)
+if isempty(insertion_point)
     set(gui_data.probe_coordinates_text,'String','Probe trajectory is outside brain');
     return
 end
 
-trajectory_depths = ones(trajectory_n_coords,1,'double');
-trajectory_depths(trajectory_coords_ccf_inbounds) = ...
-    pdist2(trajectory_brain_intersect',...
-    [trajectory_ml_coords_bregma(trajectory_coords_ccf_inbounds); ...
-    trajectory_ap_coords_bregma(trajectory_coords_ccf_inbounds); ...
-    trajectory_dv_coords_bregma(trajectory_coords_ccf_inbounds)]');
+% Update area plot and labels
+set(gui_data.handles.axes_probe_areas, ...
+    'YTick',probe_areas_plot_depth(1):0.5: ...
+    probe_areas_plot_depth(end));
+set(gui_data.handles.probe_areas_plot, ...
+    'XData',1:n_shanks, ...
+    'YData',probe_areas_plot_depth, ...
+    'CData',probe_areas_rgbcolors);
 
-trajectory_area_boundaries_idx = intersect(unique([find(trajectory_areas ~= 1,1,'first'); ...
-    find(diff(trajectory_areas) ~= 0);find(trajectory_areas ~= 1,1,'last')]),find(trajectory_areas ~= 1));
-trajectory_area_centers_idx = round(trajectory_area_boundaries_idx(1:end-1) + diff(trajectory_area_boundaries_idx)/2);
+probe_area_shank = cellfun(@(x,shank) ones(length(x),1).*shank, ...
+    probe_area_centers,num2cell(1:n_shanks)','uni',false);
 
-trajectory_area_boundaries = trajectory_depths(trajectory_area_boundaries_idx);
-trajectory_area_centers = trajectory_depths(trajectory_area_centers_idx);
-
-% Label areas by acronym/full name
-if ~isfield(gui_data,'display_region_name')
-    gui_data.display_region_name = 'acronym';
+delete(findobj(gui_data.handles.axes_probe_areas,'Type','text'));
+text_h = text(gui_data.handles.axes_probe_areas, ...
+    vertcat(probe_area_shank{:}), ...
+    vertcat(probe_area_centers{:}),vertcat(probe_area_labels{:}), ...
+    'FontSize',12,'HorizontalAlignment','center','clipping','on');
+switch gui_data.display_region_name
+    case 'acronym'
+        set(text_h,'clipping','on')
+    case 'safe_name'
+        set(text_h,'clipping','off')
 end
-trajectory_area_labels = gui_data.st.(gui_data.display_region_name)(trajectory_areas(trajectory_area_centers_idx));
-
-% Get colors for all areas (draw white lines between areas)
-trajectory_area_hexcolors = gui_data.st.color_hex_triplet(trajectory_areas);
-trajectory_area_rgbcolors = permute(cell2mat(cellfun(@(x) ...
-    hex2dec({x(1:2),x(3:4),x(5:6)})'./255, ...
-    trajectory_area_hexcolors,'uni',false)),[1,3,2]);
-trajectory_area_rgbcolors(imdilate(boundarymask(trajectory_areas),ones(20,1)),:,:) = 1;
-
-% Get coordinate from bregma and probe-axis depth from surface
-probe_bregma_coordinate = trajectory_brain_intersect;
-probe_depths = pdist2(trajectory_brain_intersect',probe_vector').* ...
-    sign(probe_vector(3,:)-trajectory_brain_intersect(3));
 
 % Update probe insertion point
 [gui_data.probe(gui_data.selected_probe).insertion_point.XData, ...
     gui_data.probe(gui_data.selected_probe).insertion_point.YData, ...
     gui_data.probe(gui_data.selected_probe).insertion_point.ZData] = ...
-    deal(probe_bregma_coordinate(1),probe_bregma_coordinate(2),probe_bregma_coordinate(3));
-
-% Update area plot and labels
-plot_trajectory_idx = find(trajectory_areas~=1,1,'first'):find(trajectory_areas~=1,1,'last');
-set(gui_data.handles.axes_probe_areas, ...
-    'YTick',trajectory_depths(plot_trajectory_idx(1)):0.5: ...
-    trajectory_depths(plot_trajectory_idx(end)))
-set(gui_data.handles.probe_areas_plot, ... 
-    'YData',trajectory_depths(plot_trajectory_idx), ...
-    'CData',trajectory_area_rgbcolors(plot_trajectory_idx,:,:));
-
-delete(findobj(gui_data.handles.axes_probe_areas,'Type','text'));
-switch gui_data.display_region_name
-    case 'acronym'
-            text(gui_data.handles.axes_probe_areas, ...
-            repmat(0.5,length(trajectory_area_centers),1), ...
-            trajectory_area_centers,trajectory_area_labels, ...
-            'FontSize',12,'HorizontalAlignment','center','clipping','on');
-    case 'safe_name'
-            text(gui_data.handles.axes_probe_areas, ...
-            repmat(-1,length(trajectory_area_centers),1), ...
-            trajectory_area_centers,trajectory_area_labels, ...
-            'FontSize',12,'HorizontalAlignment','right','clipping','off');
-end
+    deal(insertion_point(1),insertion_point(2),insertion_point(3));
 
 % Update area plot (user-selected zoom as probe or full trajectory)
-gui_data.handles.axes_probe_areas_probelimits.Position([2,4]) = ...
-    [probe_depths(1),diff(probe_depths)];
+probe_depth_limits = gui_data.probe(gui_data.selected_probe).depth - ...
+    [gui_data.probe(gui_data.selected_probe).length,0];
+
+gui_data.handles.axes_probe_areas_probelimits.Position = ...
+    [0.5,probe_depth_limits(1),n_shanks+0.5,diff(probe_depth_limits)];
 
 if ~isfield(gui_data,'display_areas')
     gui_data.display_areas = 'probe';
 end
+axis(gui_data.handles.axes_probe_areas,'tight');
 switch gui_data.display_areas
     case 'probe'
         % Set limits to probe, turn off probe box
-        ylim(gui_data.handles.axes_probe_areas,probe_depths)
+        ylim(gui_data.handles.axes_probe_areas,probe_depth_limits)
         gui_data.handles.axes_probe_areas_probelimits.Visible = 'off';
         title(gui_data.handles.axes_probe_areas,'Probe areas');
     case 'trajectory'
         % Set limits to whole trajectory, turn off probe box
-        ylim(gui_data.handles.axes_probe_areas,prctile(trajectory_depths(plot_trajectory_idx),[0,100]));
+        ylim(gui_data.handles.axes_probe_areas,prctile(probe_areas_plot_depth,[0,100]));
         gui_data.handles.axes_probe_areas_probelimits.Visible = 'on';
         title(gui_data.handles.axes_probe_areas,'Trajectory areas');
 end
 
 % Update the text
 % (manipulator angles)
-probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth, % .0f%c elevation', ...
+probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth., % .0f%c elevation, % .0f%c rotation', ...
     gui_data.probe(gui_data.selected_probe).angle(1),char(176), ...
-    gui_data.probe(gui_data.selected_probe).angle(2),char(176));
+    gui_data.probe(gui_data.selected_probe).angle(2),char(176), ...
+    gui_data.probe(gui_data.selected_probe).angle(3),char(176));
 % (probe insertion point and depth)
 probe_insertion_text = sprintf('Probe insertion: % .2f AP, % .2f ML, % .2f depth', ...
-    probe_bregma_coordinate(2),probe_bregma_coordinate(1),probe_depths(2));
-% (probe start/endpoints)
-recording_startpoint_text = sprintf('Recording top:   % .2f AP, % .2f ML, % .2f DV', ...
-    probe_vector([2,1,3],1));
-recording_endpoint_text = sprintf('Recording tip:   % .2f AP, % .2f ML, % .2f DV', ...
-    probe_vector([2,1,3],2));
+    insertion_point(2),insertion_point(1),probe_depth_limits(2));
+% (bregma-lambda distance for scaling)
 bregma_lambda_text = sprintf('Bregma-Lambda distance: % .2f mm', ...
     gui_data.bregma_lambda_distance_curr);
 % (connection status)
@@ -939,8 +915,7 @@ if isfield(gui_data,'connection')
 end
 
 % (combine and update)
-probe_text = {probe_angle_text,probe_insertion_text, ...
-    recording_startpoint_text,recording_endpoint_text,bregma_lambda_text, ...
+probe_text = {probe_angle_text,probe_insertion_text,bregma_lambda_text, ...
     manipulator_text,recording_text};
 set(gui_data.probe_coordinates_text,'String',probe_text(cellfun(@(x) ~isempty(x),probe_text)));
 
@@ -1096,7 +1071,7 @@ probe_default_vector = [0,0,0;0,0,1]';
 
 % Neuropixels 2.0
 probe_length = 3.840;
-shank_spacing = [linspace(-0.375,0.375,4);zeros(1,4);zeros(1,4)];
+shank_spacing = [((0:3)*0.25);zeros(1,4);zeros(1,4)];
 shank_vector = permute(probe_default_vector.*probe_length + ...
     permute(shank_spacing,[1,3,2]),[2,3,1]);
 
