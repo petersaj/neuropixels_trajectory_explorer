@@ -7,25 +7,6 @@
 % Instructions for use:
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
-%
-%
-%  WORKING ON 4-SHANKS HERE
-%   This is way more difficult that I had thought - all operations were
-%   done on probe lines, so this isn't scalable. 
-%
-%   Another thought - just operate on the trajectory, then have some
-%   definition of active recording sites, which can be shanks?
-%
-%   Or switch to recording sites instead of lines as shanks?
-%   --> maybe better: just operate on trajectory, re-draw sites whenever
-%   the trajectory is changed
-%
-%   started function to do this: update_recording_location
-%
-%
-% Currently:
-% L 1084 - define site geometry
-
 
 function neuropixels_trajectory_explorer
 
@@ -332,6 +313,8 @@ depth_offset = 0;
 angle_ap_offset = 0;
 angle_ml_offset = 0;
 
+update_probe_flag = false;
+
 switch eventdata.Key
     case 'uparrow'
         if isempty(eventdata.Modifier)
@@ -341,6 +324,7 @@ switch eventdata.Key
         elseif any(strcmp(eventdata.Modifier,'alt'))
             gui_data.probe(gui_data.selected_probe).depth = ...
                 gui_data.probe(gui_data.selected_probe).depth - step_size;
+            update_probe_flag = true;
             guidata(probe_atlas_gui,gui_data);
         end
     case 'downarrow'
@@ -351,6 +335,7 @@ switch eventdata.Key
         elseif any(strcmp(eventdata.Modifier,'alt'))
             gui_data.probe(gui_data.selected_probe).depth = ...
                 gui_data.probe(gui_data.selected_probe).depth + step_size;
+            update_probe_flag = true;
             guidata(probe_atlas_gui,gui_data);
         end
     case 'leftarrow'
@@ -368,12 +353,11 @@ switch eventdata.Key
     case 'r'
         gui_data.probe(gui_data.selected_probe).angle = ...
             gui_data.probe(gui_data.selected_probe).angle + [0;0;10];
-        guidata(probe_atlas_gui,gui_data);
+        update_probe_flag = true;
     case 'e'
         gui_data.probe(gui_data.selected_probe).angle = ...
             gui_data.probe(gui_data.selected_probe).angle + [0;0;-10];
-        guidata(probe_atlas_gui,gui_data);
-
+        update_probe_flag = true;
 end
 
 % Draw updated trajectory
@@ -384,6 +368,12 @@ set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
 set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
     old_trajectory_vector{2} + repmat(ap_offset,1,2) + [0,angle_ap_offset]);
 
+% Update affine/depth position (only if insertion point doesn't change)
+if update_probe_flag
+    update_probe_affine_position(probe_atlas_gui);
+    update_probe_depth_position(probe_atlas_gui);
+end
+
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
 
@@ -391,19 +381,11 @@ end
 
 function key_release(probe_atlas_gui,eventdata)
 
-% Get guidata
-gui_data = guidata(probe_atlas_gui);
-
-switch eventdata.Key
-    case {'rightarrow','leftarrow','uparrow','downarrow'}
-        % Update the probe coordinates/position and slice on arrow release
-        update_probe_coordinates(probe_atlas_gui);
-        update_probe_position(probe_atlas_gui);
-        update_slice(probe_atlas_gui);
-end
-
-% Upload gui_data
-guidata(probe_atlas_gui, gui_data);
+% On any key release: update the probe coordinates/position and slice
+update_probe_affine_position(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
+update_probe_depth_position(probe_atlas_gui);
+update_slice(probe_atlas_gui);
 
 end
 
@@ -416,29 +398,36 @@ gui_data = guidata(probe_atlas_gui);
 % Only update the slice if it's visible
 if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
 
-    % Get current position of camera
-    curr_campos = campos(gui_data.handles.axes_atlas);
+    % Get trajectory and probe location
+    trajectory_position = cell2mat(get( ...
+        gui_data.probe(gui_data.selected_probe).trajectory, ...
+        {'XData','YData','ZData'})')';
 
-    % Get probe vector
-    probe_ref_top = [gui_data.probe(gui_data.selected_probe).trajectory.XData(1), ...
-        gui_data.probe(gui_data.selected_probe).trajectory.YData(1), ...
-        gui_data.probe(gui_data.selected_probe).trajectory.ZData(1)];
-    probe_ref_bottom = [gui_data.probe(gui_data.selected_probe).trajectory.XData(2), ...
-        gui_data.probe(gui_data.selected_probe).trajectory.YData(2), ...
-        gui_data.probe(gui_data.selected_probe).trajectory.ZData(2)];
-    probe_vector = probe_ref_top - probe_ref_bottom;
+    probe_position = permute(cell2mat(permute(get( ...
+        gui_data.probe(gui_data.selected_probe).line, ...
+        {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);   
 
-    % Get probe-camera vector
-    probe_camera_vector = probe_ref_top - curr_campos;
+    if size(probe_position,3) > 1
+        % If multiple shanks: use vector across shank points
+        plot_vector = diff(permute(probe_position(1,:,[1,end]),[3,2,1]));
+    else
+        % Otherwise: use plane perpendicular to camera viewpoint
 
-    % Get the vector to plot the plane in (along with probe vector)
-    plot_vector = cross(probe_camera_vector,probe_vector);
+        % Get current position of camera
+        curr_campos = campos(gui_data.handles.axes_atlas);
+
+        % Get trajectory-camera vector
+        trajectory_camera_vector = trajectory_position(1,:) - curr_campos;
+
+        % Get the vector to plot the plane in (along with probe vector)
+        plot_vector = cross(trajectory_camera_vector,probe_vector);
+    end
 
     % Get the normal vector of the plane
-    normal_vector = cross(plot_vector,probe_vector);
+    normal_vector = cross(plot_vector,diff(trajectory_position));
 
     % Get the plane offset through the probe
-    plane_offset = -(normal_vector*probe_ref_top');
+    plane_offset = -(normal_vector*trajectory_position(1,:)');
 
     % Define a plane of points to index
     % (the plane grid is defined based on the which cardinal plan is most
@@ -597,7 +586,7 @@ guidata(probe_atlas_gui, gui_data);
 
 % Update the slice and probe coordinates
 update_slice(probe_atlas_gui);
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 end
 
@@ -658,12 +647,12 @@ guidata(probe_atlas_gui, gui_data);
 
 % Update the slice and probe coordinates
 update_slice(probe_atlas_gui);
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 end
 
 
-function gui_data = update_probe_position(probe_atlas_gui)
+function gui_data = update_probe_affine_position(probe_atlas_gui)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -697,27 +686,34 @@ shank_ref_vec_flat = reshape(permute(shank_ref_vec,[3,1,2]),3,[]);
 shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
 shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
-% Get depth relative to insertion point
-insertion_point = cell2mat(get( ...
-    gui_data.probe(gui_data.selected_probe).insertion_point, ...
-    {'XData','YData','ZData'}));
-shank_translate_depth = -pdist2(shank_translate',insertion_point);
-depth_ref = [0,gui_data.probe(gui_data.selected_probe).length] + ...
-    shank_translate_depth;
+% % Get depth relative to insertion point
+% insertion_point = cell2mat(get( ...
+%     gui_data.probe(gui_data.selected_probe).insertion_point, ...
+%     {'XData','YData','ZData'}));
+% shank_translate_depth = -pdist2(shank_translate',insertion_point);
+% depth_ref = [0,gui_data.probe(gui_data.selected_probe).length] + ...
+%     shank_translate_depth;
+% 
+% % Get target depth
+% depth_curr = [-gui_data.probe(gui_data.selected_probe).length,0] + ...
+%     gui_data.probe(gui_data.selected_probe).depth;
+% 
+% % Interpolate shank position at depth positions
+% shank_coords = reshape(interp1(depth_ref,reshape(shank_vector,2,[]), ...
+%     depth_curr,'linear','extrap'),size(shank_vector));
 
-% Get target depth
-depth_curr = [-gui_data.probe(gui_data.selected_probe).length,0] + ...
-    gui_data.probe(gui_data.selected_probe).depth;
-
-% Interpolate shank position at depth positions
-shank_coords = reshape(interp1(depth_ref,reshape(shank_vector,2,[]), ...
-    depth_curr,'linear','extrap'),size(shank_vector));
+% % Update shank line positions
+% for curr_shank = 1:size(shank_coords,2)
+%     gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
+%     gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
+%     gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
+% end
 
 % Update shank line positions
-for curr_shank = 1:size(shank_coords,2)
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_coords(:,curr_shank,1);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_coords(:,curr_shank,2);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_coords(:,curr_shank,3);
+for curr_shank = 1:size(shank_vector,2)
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
 end
 
 % Upload gui_data
@@ -725,21 +721,10 @@ guidata(probe_atlas_gui, gui_data);
 
 end
 
-
-function update_probe_coordinates(probe_atlas_gui,varargin)
+function update_probe_areas_coordinates(probe_atlas_gui,varargin)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
-
-% Get the positions of the probe and trajectory
-trajectory_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).trajectory,{'XData','YData','ZData'})');
-% probe_vector = cell2mat(get(gui_data.probe(gui_data.selected_probe).line,{'XData','YData','ZData'})');
-
-%%%%%% WORKING: UPDATING TO 4-SHANK
-% NOTE: NOT USED YET, since this normally works just by getting trajectory
-% areas and then zooming as appropriate
-% 
-% Instead: interpolate shanks all the way up/down, then zoom as appropriate
 
 % Get current probe location
 probe_vector = permute(cell2mat(permute(get( ...
@@ -774,16 +759,27 @@ probe_sample_ccf_idx = ...
         probe_sample_points_ccf_flat(inbounds_idx,3), ...
         probe_sample_points_ccf_flat(inbounds_idx,1));
 
-probe_areas = nan(length(sample_points),n_shanks);
+probe_areas = ones(length(sample_points),n_shanks);
 probe_areas(inbounds_idx) = gui_data.av(probe_sample_ccf_idx);
 
-% Get sample points depth relative to insertion depth
+% Only plot areas that have index >1 (in-brain)
 plot_probe_areas_idx = find(any(probe_areas > 1,2));
 probe_areas_plot = probe_areas(plot_probe_areas_idx,:);
 
-probe_areas_plot_depth = sample_points(plot_probe_areas_idx) + ...
-    gui_data.probe(gui_data.selected_probe).depth - ...
-    gui_data.probe(gui_data.selected_probe).length;
+% Get insertion coordinate
+ref_shank = 1; % to do: define this somewhere else
+insertion_point = probe_sample_points_bregma( ...
+    plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
+
+if isempty(insertion_point)
+    % (don't update if there isn't an insertion point)
+    set(gui_data.probe_coordinates_text,'String','Probe trajectory is outside brain');
+    return
+end
+
+% Get area depths relative to insertion coordinates
+probe_areas_plot_depth = pdist2(insertion_point, ...
+    probe_sample_points_bregma(plot_probe_areas_idx,:,ref_shank))';
 
 % Get colors for all areas (draw white lines between areas)
 probe_areas_hexcolors = gui_data.st.color_hex_triplet(probe_areas_plot);
@@ -823,21 +819,10 @@ for curr_shank = 1:n_shanks
 
 end
 
-% Get insertion coordinate
-ref_shank = 1; % to do: define this somewhere else
-insertion_point = probe_sample_points_bregma( ...
-    plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
-
-% (if there's no insertion coordinate, don't update)
-if isempty(insertion_point)
-    set(gui_data.probe_coordinates_text,'String','Probe trajectory is outside brain');
-    return
-end
-
 % Update area plot and labels
 set(gui_data.handles.axes_probe_areas, ...
-    'YTick',probe_areas_plot_depth(1):0.5: ...
-    probe_areas_plot_depth(end));
+    'YTick',floor(probe_areas_plot_depth(1)):0.5: ...
+    ceil(probe_areas_plot_depth(end)));
 set(gui_data.handles.probe_areas_plot, ...
     'XData',1:n_shanks, ...
     'YData',probe_areas_plot_depth, ...
@@ -869,7 +854,7 @@ probe_depth_limits = gui_data.probe(gui_data.selected_probe).depth - ...
     [gui_data.probe(gui_data.selected_probe).length,0];
 
 gui_data.handles.axes_probe_areas_probelimits.Position = ...
-    [0.5,probe_depth_limits(1),n_shanks+0.5,diff(probe_depth_limits)];
+    [0.5,probe_depth_limits(1),n_shanks,diff(probe_depth_limits)];
 
 if ~isfield(gui_data,'display_areas')
     gui_data.display_areas = 'probe';
@@ -935,6 +920,43 @@ guidata(probe_atlas_gui, gui_data);
 
 end
 
+function update_probe_depth_position(probe_atlas_gui)
+
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% Get current probe location
+curr_probe_position = permute(cell2mat(permute(get( ...
+    gui_data.probe(gui_data.selected_probe).line, ...
+    {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);
+
+% Get depth relative to insertion point
+insertion_point = cell2mat(get( ...
+    gui_data.probe(gui_data.selected_probe).insertion_point, ...
+    {'XData','YData','ZData'}));
+
+ref_shank = 1;
+curr_depth_point = squeeze(curr_probe_position(2,:,ref_shank));
+depth_curr = pdist2(curr_depth_point,insertion_point) - ...
+    [gui_data.probe(gui_data.selected_probe).length,0];
+
+% Get target depth
+depth_target = [-gui_data.probe(gui_data.selected_probe).length,0] + ...
+    gui_data.probe(gui_data.selected_probe).depth;
+
+% Interpolate shank position at depth positions
+new_probe_position = reshape(interp1(depth_curr,reshape(curr_probe_position,2,[]), ...
+    depth_target,'linear','extrap'),size(curr_probe_position));
+
+% Update shank line positions
+for curr_shank = 1:size(new_probe_position,3)
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = new_probe_position(:,1,curr_shank);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = new_probe_position(:,2,curr_shank);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = new_probe_position(:,3,curr_shank);
+end
+
+end
+
 function update_brain_scale(probe_atlas_gui,bregma_lambda_distance)
 % Update the scaling of the brain based on the bregma-lambda distance
 
@@ -971,16 +993,13 @@ end
 update_slice(probe_atlas_gui);
 
 % Update probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 % Restore text color
 set(gui_data.probe_coordinates_text,'Color','k')
 
 end
 
-function update_recording_location(h,eventdata,probe_atlas_gui)
-%%%%%%% NEW HERE: get trajectory, draw probe sites again
-end
 
 %% Control functions
 
@@ -1109,8 +1128,8 @@ guidata(probe_atlas_gui,gui_data);
 % Select probe
 select_probe(gui_data.probe(new_probe_idx).line,[],probe_atlas_gui)
 
-% Update probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+% Update probe areas and coordinates
+update_probe_areas_coordinates(probe_atlas_gui);
 
 % Update slice for newly selected probe
 update_slice(probe_atlas_gui);
@@ -1148,7 +1167,7 @@ guidata(probe_atlas_gui,gui_data);
 select_probe(gui_data.probe(1).line,[],probe_atlas_gui);
 
 % Update probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 % Update slice
 update_slice(probe_atlas_gui);
@@ -1369,7 +1388,7 @@ set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
 
 % Update gui_data and area names
 guidata(probe_atlas_gui, gui_data);
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 end
 
 function set_areas_trajectory(h,eventdata,probe_atlas_gui)
@@ -1386,7 +1405,7 @@ set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
 
 % Update gui_data and area names
 guidata(probe_atlas_gui, gui_data);
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 end
 
 function set_name_acronym(h,eventdata,probe_atlas_gui)
@@ -1403,7 +1422,7 @@ set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
 
 % Update gui_data and area names
 guidata(probe_atlas_gui, gui_data);
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 end
 
 function set_name_full(h,eventdata,probe_atlas_gui)
@@ -1420,7 +1439,7 @@ set(alt_menu_options(alt_menu_options ~= h),'Checked','off');
 
 % Update gui_data and area names
 guidata(probe_atlas_gui, gui_data);
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 end
 
 
@@ -1719,7 +1738,7 @@ for curr_probe = 1:load_n_probes
 end
 
 % Update coordinates/slice
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 update_slice(probe_atlas_gui);
 
 % Update gui data
@@ -1842,7 +1861,7 @@ switch new_check
         start(gui_data.connection.manipulator.timer_fcn)
 
         % Update probe coordinates
-        update_probe_coordinates(probe_atlas_gui);
+        update_probe_areas_coordinates(probe_atlas_gui);
 
     case 'off'
         % Stop timer function and delete connection
@@ -1859,7 +1878,7 @@ switch new_check
         guidata(probe_atlas_gui,gui_data);
 
         % Update probe coordinates
-        update_probe_coordinates(probe_atlas_gui);
+        update_probe_areas_coordinates(probe_atlas_gui);
 end
 
 end
@@ -1963,7 +1982,7 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     select_probe(gui_data.probe(newscale_selected_probe).line,[],probe_atlas_gui)
 
     % Update the slice and probe coordinates
-    update_probe_coordinates(probe_atlas_gui);
+    update_probe_areas_coordinates(probe_atlas_gui);
 
     % Update slice
     update_slice(probe_atlas_gui);
@@ -2146,7 +2165,7 @@ set(gui_data.probe.trajectory(1), ...
 guidata(probe_atlas_gui, gui_data);
 
 % Update the slice and probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 % Update slice
 update_slice(probe_atlas_gui);
@@ -2229,7 +2248,7 @@ end
 guidata(probe_atlas_gui, gui_data);
 
 % Send probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 end
 
@@ -2295,7 +2314,7 @@ end
 guidata(probe_atlas_gui, gui_data);
 
 % Send probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 
 end
 
@@ -2496,7 +2515,7 @@ gui_data.selected_probe = find(selected_probe_idx);
 guidata(probe_atlas_gui, gui_data);
 
 % Update the slice and probe coordinates
-update_probe_coordinates(probe_atlas_gui);
+update_probe_areas_coordinates(probe_atlas_gui);
 update_slice(probe_atlas_gui);
 
 end
