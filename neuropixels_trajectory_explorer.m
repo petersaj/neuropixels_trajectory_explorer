@@ -10,6 +10,8 @@
 % TO DO 2.0 update: 
 % - save/load
 % - newscale connection
+% -- angles are off
+% -- ideally use built-in calculation, use MPM as only trajectory control
 % - recording connection
 
 function neuropixels_trajectory_explorer
@@ -159,7 +161,7 @@ axes_probe_areas.ActivePositionProperty = 'position';
 probe_areas_plot = image(axes_probe_areas,[0,1],0,0);
 axes_probe_areas_probelimits = ...
     rectangle(axes_probe_areas, ...
-    'position',[min(xlim(axes_probe_areas)),0,diff(xlim(axes_probe_areas)),1], ...
+    'position',[min(xlim(axes_probe_areas)),0,0,0], ...
     'edgecolor','b','linewidth',5);
 
 set(axes_probe_areas,'FontSize',12);
@@ -1136,8 +1138,8 @@ function probe_remove(~,~,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% If there's only one probe, don't do anything
-if length(gui_data.probe) == 1
+% If there are no probes, don't do anything
+if ~isfield(gui_data,'probe') || isempty(gui_data.probe)
     return
 end
 
@@ -1157,14 +1159,13 @@ gui_data.probe(gui_data.selected_probe) = [];
 % Update guidata
 guidata(probe_atlas_gui,gui_data);
 
-% Select first probe
-select_probe(gui_data.probe(1).line,[],probe_atlas_gui);
+% If there are remaining probes, auto-select first probe
+if ~isempty(gui_data.probe)
+    select_probe(gui_data.probe(1).line,[],probe_atlas_gui);
+    update_probe_areas_coordinates(probe_atlas_gui);
+    update_slice(probe_atlas_gui);
+end
 
-% Update probe coordinates
-update_probe_areas_coordinates(probe_atlas_gui);
-
-% Update slice
-update_slice(probe_atlas_gui);
 
 end
 
@@ -1761,6 +1762,7 @@ switch new_check
             uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','FontSize',button_fontsize, ...
             'Units','normalized','Position',button_position,'String','Set probe at brain surface', ...
             'Callback',{@set_manipulator_dv_offset,probe_atlas_gui});
+        guidata(probe_atlas_gui, gui_data);
 
         % Add "connecting" message
         set(gui_data.probe_coordinates_text,'String','CONNECTING TO NEW SCALE MPM...');
@@ -1814,21 +1816,20 @@ switch new_check
             error('Error querying MPM: %s',newscale_client.LastError);
         end
 
-        % Get number of probes connected in the MPM
-        newscale_n_probes = newscale_client.AppData.Probes;
-
-        % Set number of probes equal to MPM-connected probe number
-        user_n_probes = length(gui_data.probe);
-        if user_n_probes > newscale_n_probes
-            for i = 1:(user_n_probes - newscale_n_probes)
+        % Remove any pre-existing probes
+        if isfield(gui_data,'probe') && ~isempty(gui_data.probe)
+            user_n_probes = length(gui_data.probe);
+            for i = 1:user_n_probes
                 probe_remove([],[],probe_atlas_gui);
                 gui_data = guidata(probe_atlas_gui);
             end
-        elseif user_n_probes < newscale_n_probes
-            for i = 1:(newscale_n_probes - user_n_probes)
-                probe_add([],[],probe_atlas_gui);
-                gui_data = guidata(probe_atlas_gui);
-            end
+        end
+
+        % Add number of MPM-connected probes
+        newscale_n_probes = newscale_client.AppData.Probes;
+        for i = 1:newscale_n_probes
+            probe_add([],[],probe_atlas_gui);
+            gui_data = guidata(probe_atlas_gui);
         end
 
         % Set manipulator DV offset for brain surface
@@ -1853,9 +1854,6 @@ switch new_check
         % (necessary for the standalone, which deletes function on 'start')
         guidata(probe_atlas_gui,gui_data);
         start(gui_data.connection.manipulator.timer_fcn)
-
-        % Update probe coordinates
-        update_probe_areas_coordinates(probe_atlas_gui);
 
     case 'off'
         % Stop timer function and delete connection
@@ -1906,13 +1904,13 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
     mpm2nte_angles = ...
         [newscale_probe_info.Polar-double(gui_data.connection.manipulator.client.AppData.PosteriorAngle), ...
-        90-newscale_probe_info.Pitch];
+        90-newscale_probe_info.Pitch,newscale_probe_info.Roll];
 
     % (using length of recording sites, not full length of the probe from VCS)
     [x,y,z] = sph2cart( ...
         deg2rad(90-mpm2nte_angles(1)),  ...
         deg2rad(180+mpm2nte_angles(2)), ...
-        gui_data.probe.length(curr_newscale_probe));
+        gui_data.probe(curr_newscale_probe).length);
     probe_top = probe_tip + [x; y; z];
 
     % Add DV offset relative to zeroing at brain surface (if applicable)
@@ -1954,7 +1952,7 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
 
     trajectory_vector = [probe_ref_top;probe_ref_bottom]';
 
-    set(gui_data.probe.trajectory(curr_newscale_probe), ...
+    set(gui_data.probe(curr_newscale_probe).trajectory, ...
         'XData',trajectory_vector(1,:), ...
         'YData',trajectory_vector(2,:), ...
         'ZData',trajectory_vector(3,:));
