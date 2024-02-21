@@ -533,7 +533,8 @@ prompt_text = { ...
     'AP position (mm from bregma)', ...
     'ML position (mm from bregma)', ...
     'Azimuth angle (relative to lambda -> bregma)', ....
-    'Elevation angle (relative to horizontal)'};
+    'Elevation angle (relative to horizontal)', ...
+    'Rotation angle'};
 
 new_probe_position_input = inputdlg(prompt_text,'Set probe position',1);
 if any(cellfun(@isempty,new_probe_position_input))
@@ -542,7 +543,7 @@ end
 new_probe_position = cellfun(@str2num,new_probe_position_input);
 
 % Convert degrees to radians
-probe_angle = new_probe_position(3:4);
+probe_angle = new_probe_position(3:5);
 
 % Update the probe and trajectory reference
 ml_lim = xlim(gui_data.handles.axes_atlas);
@@ -587,21 +588,15 @@ set(gui_data.probe(gui_data.selected_probe).trajectory, ...
     'YData',trajectory_vector(2,:), ...
     'ZData',trajectory_vector(3,:));
 
-probe_vector = [trajectory_vector(:,1),diff(trajectory_vector,[],2)./ ...
-    norm(diff(trajectory_vector,[],2))*gui_data.probe(gui_data.selected_probe).length + ...
-    trajectory_vector(:,1)];
-set(gui_data.probe(gui_data.selected_probe).line, ...
-    'XData',probe_vector(1,:), ...
-    'YData',probe_vector(2,:), ...
-    'ZData',probe_vector(3,:));
-
 % Upload gui_data
 gui_data.probe(gui_data.selected_probe).angle = probe_angle;
 guidata(probe_atlas_gui, gui_data);
 
-% Update the slice and probe coordinates
-update_slice(probe_atlas_gui);
+% Update probe and slice
+update_probe_affine_position(probe_atlas_gui);
 update_probe_areas_coordinates(probe_atlas_gui);
+update_probe_depth_position(probe_atlas_gui);
+update_slice(probe_atlas_gui);
 
 end
 
@@ -616,7 +611,8 @@ prompt_text = { ...
     'ML position (mm from bregma)', ...
     'DV position (mm from bregma)', ...
     'Azimuth angle (relative to lambda -> bregma)', ....
-    'Elevation angle (relative to horizontal)'};
+    'Elevation angle (relative to horizontal)', ...
+    'Rotation angle'};
 
 new_probe_position_input = inputdlg(prompt_text,'Set probe position',1);
 if any(cellfun(@isempty,new_probe_position_input))
@@ -624,8 +620,10 @@ if any(cellfun(@isempty,new_probe_position_input))
 end
 new_probe_position = cellfun(@str2num,new_probe_position_input);
 
+probe_angle = new_probe_position(4:6);
+
 % Convert degrees to radians
-probe_angle_rad = deg2rad(new_probe_position(4:5));
+probe_angle_rad = deg2rad(probe_angle(1:2));
 
 % Update the probe and trajectory reference
 ml_lim = xlim(gui_data.handles.axes_atlas);
@@ -647,22 +645,15 @@ set(gui_data.probe(gui_data.selected_probe).trajectory, ...
     'YData',trajectory_vector(2,:), ...
     'ZData',trajectory_vector(3,:));
 
-% Move probe (lock endpoint, back up length of probe)
-probe_vector = [diff(trajectory_vector,[],2)./ ...
-    norm(diff(trajectory_vector,[],2))*-gui_data.probe(gui_data.selected_probe).length + ...
-    new_probe_position([2,1,3]),new_probe_position([2,1,3])];
-set(gui_data.probe(gui_data.selected_probe).line, ...
-    'XData',probe_vector(1,:), ...
-    'YData',probe_vector(2,:), ...
-    'ZData',probe_vector(3,:));
-
 % Upload gui_data
-gui_data.probe(gui_data.selected_probe).angle = (probe_angle_rad/(2*pi))*360;
+gui_data.probe(gui_data.selected_probe).angle = probe_angle;
 guidata(probe_atlas_gui, gui_data);
 
-% Update the slice and probe coordinates
-update_slice(probe_atlas_gui);
+% Update probe and slice
+update_probe_affine_position(probe_atlas_gui);
 update_probe_areas_coordinates(probe_atlas_gui);
+update_probe_depth_position(probe_atlas_gui);
+update_slice(probe_atlas_gui);
 
 end
 
@@ -1190,13 +1181,13 @@ probe_properties_grid = uigridlayout(probe_properties_fig,[2,2]);
 probe_properties_grid.RowHeight = {'7x','1x'};
 
 probe_recording_slots = num2cell(vertcat(gui_data.probe.recording_slot));
-probe_types = repmat({'Npx 1.0'},n_probes,1);
+probe_types = {gui_data.probe.type};
 probe_properties = [probe_types,probe_recording_slots];
 
 probe_properties_table = uitable(probe_properties_grid, ...
     'ColumnName',{'Probe type','Recording slot'}, ...
-    'ColumnFormat',{{'Npx 1.0','Npx 2.0'},'numeric'}, ...
-    'ColumnEditable',[true,true], ...
+    'ColumnFormat',{'char','numeric'}, ...
+    'ColumnEditable',[false,true], ...
     'RowName',arrayfun(@(x) sprintf('Probe %d',x),1:n_probes,'uni',false), ...
     'Data',probe_properties);
 probe_properties_table.Layout.Column = [1,2];
