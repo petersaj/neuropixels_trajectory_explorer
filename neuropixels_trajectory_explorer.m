@@ -303,13 +303,13 @@ function key_press(probe_atlas_gui,eventdata)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Set step size in millimeters
-step_size = 0.1;
+% Step sizes
+step_size_position = 0.1; % position, mm
+step_size_rotation = 10; % angle, deg
 
 % Update probe coordinates
 ap_offset = 0;
 ml_offset = 0;
-depth_offset = 0;
 angle_ap_offset = 0;
 angle_ml_offset = 0;
 
@@ -318,46 +318,48 @@ update_probe_flag = false;
 switch eventdata.Key
     case 'uparrow'
         if isempty(eventdata.Modifier)
-            ap_offset = step_size;
+            ap_offset = step_size_position;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_ap_offset = step_size;
+            angle_ap_offset = step_size_position;
         elseif any(strcmp(eventdata.Modifier,'alt'))
             gui_data.probe(gui_data.selected_probe).depth = ...
-                gui_data.probe(gui_data.selected_probe).depth - step_size;
+                gui_data.probe(gui_data.selected_probe).depth - step_size_position;
             update_probe_flag = true;
             guidata(probe_atlas_gui,gui_data);
         end
     case 'downarrow'
         if isempty(eventdata.Modifier)
-            ap_offset = -step_size;
+            ap_offset = -step_size_position;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_ap_offset = -step_size;
+            angle_ap_offset = -step_size_position;
         elseif any(strcmp(eventdata.Modifier,'alt'))
             gui_data.probe(gui_data.selected_probe).depth = ...
-                gui_data.probe(gui_data.selected_probe).depth + step_size;
+                gui_data.probe(gui_data.selected_probe).depth + step_size_position;
             update_probe_flag = true;
             guidata(probe_atlas_gui,gui_data);
         end
     case 'leftarrow'
         if isempty(eventdata.Modifier)
-            ml_offset = -step_size;
+            ml_offset = -step_size_position;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_ml_offset = -step_size;
+            angle_ml_offset = -step_size_position;
+        elseif any(strcmp(eventdata.Modifier,'control'))
+            gui_data.probe(gui_data.selected_probe).angle = ...
+                mod(gui_data.probe(gui_data.selected_probe).angle + ...
+                [0;0;step_size_rotation],360);
+            update_probe_flag = true;
         end
     case 'rightarrow'
         if isempty(eventdata.Modifier)
-            ml_offset = step_size;
+            ml_offset = step_size_position;
         elseif any(strcmp(eventdata.Modifier,'shift'))
-            angle_ml_offset = step_size;
+            angle_ml_offset = step_size_position;
+        elseif any(strcmp(eventdata.Modifier,'control'))
+            gui_data.probe(gui_data.selected_probe).angle = ...
+                mod(gui_data.probe(gui_data.selected_probe).angle + ...
+                [0;0;-step_size_rotation],360);
+            update_probe_flag = true;
         end
-    case 'r'
-        gui_data.probe(gui_data.selected_probe).angle = ...
-            gui_data.probe(gui_data.selected_probe).angle + [0;0;10];
-        update_probe_flag = true;
-    case 'e'
-        gui_data.probe(gui_data.selected_probe).angle = ...
-            gui_data.probe(gui_data.selected_probe).angle + [0;0;-10];
-        update_probe_flag = true;
 end
 
 % Draw updated trajectory
@@ -405,7 +407,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
 
     probe_position = permute(cell2mat(permute(get( ...
         gui_data.probe(gui_data.selected_probe).line, ...
-        {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);   
+        {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);
 
     if size(probe_position,3) > 1
         % If multiple shanks: use vector across shank points
@@ -667,16 +669,16 @@ trajectory_vector = cell2mat( ...
     diff(trajectory_vector(2,:)), ...
     diff(trajectory_vector(3,:)));
 
-% Get probe shank coordinates relative to rotation 
+% Get probe shank coordinates relative to rotation
 probe_rotation_rad = deg2rad(gui_data.probe(gui_data.selected_probe).angle(3));
-probe_angle = [probe_rotation_rad, ...
+probe_angle_rad = [probe_rotation_rad, ...
     pi/2-trajectory_elevation_sph, ...
     trajectory_azimuth_sph+pi/2];
 
 % Create rotation transform matricies
-R_shank = [cos(probe_angle(1)) -sin(probe_angle(1)) 0; sin(probe_angle(1)) cos(probe_angle(1)) 0; 0 0 1];
-R_elevation = [1 0 0; 0 cos(probe_angle(2)) -sin(probe_angle(2)); 0 sin(probe_angle(2)) cos(probe_angle(2))];
-R_azimuth = [cos(probe_angle(3)) -sin(probe_angle(3)) 0; sin(probe_angle(3)) cos(probe_angle(3)) 0; 0 0 1];
+R_shank = [cos(probe_angle_rad(1)) -sin(probe_angle_rad(1)) 0; sin(probe_angle_rad(1)) cos(probe_angle_rad(1)) 0; 0 0 1];
+R_elevation = [1 0 0; 0 cos(probe_angle_rad(2)) -sin(probe_angle_rad(2)); 0 sin(probe_angle_rad(2)) cos(probe_angle_rad(2))];
+R_azimuth = [cos(probe_angle_rad(3)) -sin(probe_angle_rad(3)) 0; sin(probe_angle_rad(3)) cos(probe_angle_rad(3)) 0; 0 0 1];
 R_probe = R_azimuth*R_elevation*R_shank;
 
 % Rotate and translate default shanks to follow trajectory
@@ -686,35 +688,17 @@ shank_ref_vec_flat = reshape(permute(shank_ref_vec,[3,1,2]),3,[]);
 shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
 shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
-% % Get depth relative to insertion point
-% insertion_point = cell2mat(get( ...
-%     gui_data.probe(gui_data.selected_probe).insertion_point, ...
-%     {'XData','YData','ZData'}));
-% shank_translate_depth = -pdist2(shank_translate',insertion_point);
-% depth_ref = [0,gui_data.probe(gui_data.selected_probe).length] + ...
-%     shank_translate_depth;
-% 
-% % Get target depth
-% depth_curr = [-gui_data.probe(gui_data.selected_probe).length,0] + ...
-%     gui_data.probe(gui_data.selected_probe).depth;
-% 
-% % Interpolate shank position at depth positions
-% shank_coords = reshape(interp1(depth_ref,reshape(shank_vector,2,[]), ...
-%     depth_curr,'linear','extrap'),size(shank_vector));
-
-% % Update shank line positions
-% for curr_shank = 1:size(shank_coords,2)
-%     gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
-%     gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
-%     gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
-% end
-
 % Update shank line positions
 for curr_shank = 1:size(shank_vector,2)
     gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
     gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
     gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
 end
+
+% Update probe angles
+gui_data.probe(gui_data.selected_probe).angle(1:2) = ...
+    mod(rad2deg([-trajectory_azimuth_sph,trajectory_elevation_sph]) + ...
+    [90,0],360);
 
 % Upload gui_data
 guidata(probe_atlas_gui, gui_data);
@@ -754,10 +738,10 @@ inbounds_idx = all(probe_sample_points_ccf_flat > 0 & ...
     probe_sample_points_ccf_flat <= size(gui_data.av,[3,1,2]),2);
 
 probe_sample_ccf_idx = ...
-        sub2ind(size(gui_data.av), ...
-        probe_sample_points_ccf_flat(inbounds_idx,2), ...
-        probe_sample_points_ccf_flat(inbounds_idx,3), ...
-        probe_sample_points_ccf_flat(inbounds_idx,1));
+    sub2ind(size(gui_data.av), ...
+    probe_sample_points_ccf_flat(inbounds_idx,2), ...
+    probe_sample_points_ccf_flat(inbounds_idx,3), ...
+    probe_sample_points_ccf_flat(inbounds_idx,1));
 
 probe_areas = ones(length(sample_points),n_shanks);
 probe_areas(inbounds_idx) = gui_data.av(probe_sample_ccf_idx);
@@ -875,7 +859,7 @@ end
 
 % Update the text
 % (manipulator angles)
-probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth., % .0f%c elevation, % .0f%c rotation', ...
+probe_angle_text = sprintf('Probe angle:     % .0f%c az.,  % .0f%c el., % .0f%c rot.', ...
     gui_data.probe(gui_data.selected_probe).angle(1),char(176), ...
     gui_data.probe(gui_data.selected_probe).angle(2),char(176), ...
     gui_data.probe(gui_data.selected_probe).angle(3),char(176));
@@ -891,11 +875,11 @@ recording_text = [];
 if isfield(gui_data,'connection')
     if isfield(gui_data.connection,'manipulator')
         manipulator_text = sprintf('Connected manipulator: %s', ...
-        gui_data.connection.manipulator.model);
+            gui_data.connection.manipulator.model);
     end
     if isfield(gui_data.connection,'recording')
         recording_text = sprintf('Connected recording: %s', ...
-        gui_data.connection.recording.software);
+            gui_data.connection.recording.software);
     end
 end
 
@@ -1078,7 +1062,7 @@ trajectory_line = line(gui_data.handles.axes_atlas, ...
 %%%%% IN PROGRESS: 4-SHANK
 %
 % TO DO HERE: define probe position by rotation/azimuth/elevation angles
-% and position relative to bregma. 
+% and position relative to bregma.
 % Then change all probe updating by these coordinates.
 
 % Define default trajectory vector
@@ -2004,7 +1988,7 @@ probe_position = ...
     gui_data.probe(gui_data.selected_probe).line.ZData];
 probe_tip = probe_position(:,2);
 
-% Get brain surface at ML/AP position 
+% Get brain surface at ML/AP position
 % (use brain outline mesh: find closest surface coordinate)
 brain_outline_median_dv = median(gui_data.handles.brain_outline.Vertices(:,3));
 use_vertices = find(gui_data.handles.brain_outline.Vertices(:,3) <= brain_outline_median_dv);
@@ -2300,7 +2284,7 @@ switch new_check
         catch me
             errordlg({sprintf('SpikeGLX not accessible on %s:%d',spikeglx_ip,spikeglx_port), ...
                 'Ensure SpikeGLX server is running (SpikeGLX console: Options >  Command Server Settings > Enable)'},'SpikeGLX');
-        end        
+        end
 
     case 'off'
         % Remove recording connection
@@ -2347,7 +2331,7 @@ switch gui_data.connection.recording.software
         % Convert selected probe number to letter
         alphabet = 'A':'Z';
         probe_letter = alphabet(gui_data.probe(gui_data.selected_probe).recording_slot);
-    
+
         send_areas = find(~isnan(area_boundaries_sites));
         [~,send_area_sort] = sort(area_boundaries_sites(send_areas));
         areas_send_txt = [sprintf('Probe%s;',probe_letter), ...
@@ -2372,62 +2356,62 @@ switch gui_data.connection.recording.software
         end
 
     case 'SpikeGLX'
-    % SpikeGLX area conventions:
-    %     Set anatomy data string with Pinpoint format:
-    %     [probe-id,shank-id](startpos,endpos,R,G,B,rgnname)(startpos,endpos,R,G,B,rgnname)…()
-    %        - probe-id: SpikeGLX logical probe id.
-    %        - shank-id: [0..n-shanks].
-    %        - startpos: region start in microns from tip.
-    %        - endpos:   region end in microns from tip.
-    %        - R,G,B:    region color as RGB, each [0..255].
-    %        - rgnname:  region name text.
+        % SpikeGLX area conventions:
+        %     Set anatomy data string with Pinpoint format:
+        %     [probe-id,shank-id](startpos,endpos,R,G,B,rgnname)(startpos,endpos,R,G,B,rgnname)…()
+        %        - probe-id: SpikeGLX logical probe id.
+        %        - shank-id: [0..n-shanks].
+        %        - startpos: region start in microns from tip.
+        %        - endpos:   region end in microns from tip.
+        %        - R,G,B:    region color as RGB, each [0..255].
+        %        - rgnname:  region name text.
 
-    % Get SpikeGLX probes (unused at the moment)
-    orig_warning = warning;
-    warning('off','all')
-    spikeglx_probelist = GetProbeList(gui_data.connection.recording.client);
-    spike_glx_probelist_parsed = regexp(spikeglx_probelist, ...
-        '(\d*),(\d*),PRB_(\d*)_(\d*)_(\d*)_(\d*)','tokens');
-    warning(orig_warning);
+        % Get SpikeGLX probes (unused at the moment)
+        orig_warning = warning;
+        warning('off','all')
+        spikeglx_probelist = GetProbeList(gui_data.connection.recording.client);
+        spike_glx_probelist_parsed = regexp(spikeglx_probelist, ...
+            '(\d*),(\d*),PRB_(\d*)_(\d*)_(\d*)_(\d*)','tokens');
+        warning(orig_warning);
 
-    % If selected probe index is more than number of SpikeGLX: do nothing
-    if gui_data.selected_probe > length(spike_glx_probelist_parsed)
-        return
-    end
+        % If selected probe index is more than number of SpikeGLX: do nothing
+        if gui_data.selected_probe > length(spike_glx_probelist_parsed)
+            return
+        end
 
-    % Get area depths relative to probe tip 
-    % (SpikeGLX is microns from tip, so add in tip length)
-    tip_length = 175;
-    area_boundaries_um = -(area_boundaries-probe_depth(2))*1000 + tip_length;
+        % Get area depths relative to probe tip
+        % (SpikeGLX is microns from tip, so add in tip length)
+        tip_length = 175;
+        area_boundaries_um = -(area_boundaries-probe_depth(2))*1000 + tip_length;
 
-    % Colors: hex to RGB
-    area_rgbcolors = cell2mat(cellfun(@(x) ...
-        hex2dec({x(1:2),x(3:4),x(5:6)})', ...
-        area_hexcolors,'uni',false));
+        % Colors: hex to RGB
+        area_rgbcolors = cell2mat(cellfun(@(x) ...
+            hex2dec({x(1:2),x(3:4),x(5:6)})', ...
+            area_hexcolors,'uni',false));
 
-    % (note: SpikeGLX zero indexes probe/shank)
-    areas_send_txt = [sprintf('[%d,%d]', ...
-        gui_data.probe(gui_data.selected_probe).recording_slot-1,0), ...
-        cell2mat(arrayfun(@(x) sprintf('(%d,%d,%g,%g,%g,%s)', ...
-        area_boundaries_um(x+1),area_boundaries_um(x)-1, ...
-        area_rgbcolors(x,:), area_labels{x}), ...
-        (1:length(area_boundaries_um)-1)','uni',false)')];
+        % (note: SpikeGLX zero indexes probe/shank)
+        areas_send_txt = [sprintf('[%d,%d]', ...
+            gui_data.probe(gui_data.selected_probe).recording_slot-1,0), ...
+            cell2mat(arrayfun(@(x) sprintf('(%d,%d,%g,%g,%g,%s)', ...
+            area_boundaries_um(x+1),area_boundaries_um(x)-1, ...
+            area_rgbcolors(x,:), area_labels{x}), ...
+            (1:length(area_boundaries_um)-1)','uni',false)')];
 
-    % Send areas to SpikeGLX
-    % (sends warning about connection: turn warnings off/on to avoid)
-    orig_warning = warning;
-    warning('off','all')
-    SetAnatomy_Pinpoint(gui_data.connection.recording.client,areas_send_txt);
-    warning(orig_warning);
+        % Send areas to SpikeGLX
+        % (sends warning about connection: turn warnings off/on to avoid)
+        orig_warning = warning;
+        warning('off','all')
+        SetAnatomy_Pinpoint(gui_data.connection.recording.client,areas_send_txt);
+        warning(orig_warning);
 
-    % SpikeGLX TO DO: 
-    % Get geometry of recorded sites by:
-    % x = GetGeomMap(gui_data.connection.recording.client,ip)
-    % (ip = probe index, zero-indexed)
-    % (commands often take js = jth stream (0=NI, 1=Onebox,2=imec probe)
-    % (ip is the ith object of the stream, the ith probe)
-    % (need to execute this one level back where it's pulling the areas)
-    
+        % SpikeGLX TO DO:
+        % Get geometry of recorded sites by:
+        % x = GetGeomMap(gui_data.connection.recording.client,ip)
+        % (ip = probe index, zero-indexed)
+        % (commands often take js = jth stream (0=NI, 1=Onebox,2=imec probe)
+        % (ip is the ith object of the stream, the ith probe)
+        % (need to execute this one level back where it's pulling the areas)
+
 end
 
 end
@@ -2474,7 +2458,7 @@ if ~isfield(gui_data.handles,'brain_outline')
         'Faces',brain_outline_patchdata.faces, ...
         'FaceColor',[0.5,0.5,0.5],'EdgeColor','none','FaceAlpha',0.1, ...
         'PickableParts','none'); % make unclickable, since probes are inside and clickable
-    
+
     gui_data.handles.brain_outline = brain_outline;
 else
     % If a brain outline exists, set new faces/vertices
