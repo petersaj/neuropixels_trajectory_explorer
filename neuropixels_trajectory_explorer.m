@@ -7,6 +7,10 @@
 % Instructions for use:
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
+% TO DO 2.0 update: 
+% - save/load
+% - newscale connection
+% - recording connection
 
 function neuropixels_trajectory_explorer
 
@@ -268,10 +272,6 @@ guidata(probe_atlas_gui, gui_data);
 % Draw brain outline
 draw_brain(probe_atlas_gui);
 
-% Add a probe, draw slice
-probe_add([],[],probe_atlas_gui);
-update_slice(probe_atlas_gui);
-
 end
 
 function gui_close(probe_atlas_gui,eventdata)
@@ -302,6 +302,11 @@ function key_press(probe_atlas_gui,eventdata)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
+
+% If no probes are selected, do nothing
+if ~isfield(gui_data,'selected_probe')
+    return
+end
 
 % Step sizes
 step_size_position = 0.1; % position, mm
@@ -383,6 +388,14 @@ end
 
 function key_release(probe_atlas_gui,eventdata)
 
+% Get guidata
+gui_data = guidata(probe_atlas_gui);
+
+% If no probes are selected, do nothing
+if ~isfield(gui_data,'selected_probe')
+    return
+end
+
 % On any key release: update the probe coordinates/position and slice
 update_probe_affine_position(probe_atlas_gui);
 update_probe_areas_coordinates(probe_atlas_gui);
@@ -422,7 +435,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
         trajectory_camera_vector = trajectory_position(1,:) - curr_campos;
 
         % Get the vector to plot the plane in (along with probe vector)
-        plot_vector = cross(trajectory_camera_vector,probe_vector);
+        plot_vector = cross(trajectory_camera_vector,probe_position(1,:));
     end
 
     % Get the normal vector of the plane
@@ -1022,6 +1035,7 @@ CreateMode.WindowStyle = 'non-modal';
 msgbox({'\fontsize{16}\bfProbe controls: ', ...
     '\fontsize{14}\rmWhole probe: Arrow keys', ...
     'Probe insertion depth: Alt + Arrow keys', ...
+    'Probe rotation angle: Ctrl + Arrow keys', ...
     'Probe tip (changes angle): Shift + Arrow keys', ...
     'Select probe (if >1): Click probe, selected is \color{blue}blue'}, ...
     'Keyboard controls','help',CreateMode);
@@ -1030,6 +1044,19 @@ end
 
 function probe_add(~,~,probe_atlas_gui)
 % Add probe
+
+% Select probe type
+probe_types = {'Neuropixels 1.0','Neuropixels 2.0'};
+[probe_type_idx,probe_type_selected] = listdlg( ...
+    'PromptString','Choose probe type','ListString',probe_types, ...
+    'SelectionMode','single');
+
+if ~probe_type_selected
+   % If no probe selected, do nothing
+    return
+else
+    probe_type = probe_types{probe_type_idx};
+end
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1051,32 +1078,20 @@ trajectory_line = line(gui_data.handles.axes_atlas, ...
     trajectory_vector(1,:),trajectory_vector(2,:),trajectory_vector(3,:), ...
     'linewidth',1.5,'color','r','linestyle','--');
 
-% Draw probe recording length
-% probe_length = 3.840; % IMEC phase 3 (in mm)
-% probe_vector = [trajectory_vector(:,1),diff(trajectory_vector,[],2)./ ...
-%     norm(diff(trajectory_vector,[],2))*probe_length + trajectory_vector(:,1)];
-% probe_line = line(gui_data.handles.axes_atlas, ...
-%     probe_vector(1,:),probe_vector(2,:),probe_vector(3,:), ...
-%     'linewidth',5,'color','b','linestyle','-');
-
-%%%%% IN PROGRESS: 4-SHANK
-%
-% TO DO HERE: define probe position by rotation/azimuth/elevation angles
-% and position relative to bregma.
-% Then change all probe updating by these coordinates.
-
 % Define default trajectory vector
 probe_default_vector = [0,0,0;0,0,1]';
 
-% % Neuropixels 1.0
-% probe_length = 3.840;
-% shank_vector = permute(probe_default_vector.*probe_length,[3,2,1]);
-
-% Neuropixels 2.0
-probe_length = 3.840;
-shank_spacing = [((0:3)*0.25);zeros(1,4);zeros(1,4)];
-shank_vector = permute(probe_default_vector.*probe_length + ...
-    permute(shank_spacing,[1,3,2]),[2,3,1]);
+% Create probe shank geometry for selected type
+switch probe_type
+    case 'Neuropixels 1.0'
+        probe_length = 3.840;
+        shank_vector = permute(probe_default_vector.*probe_length,[3,2,1]);
+    case 'Neuropixels 2.0'
+        probe_length = 3.840;
+        shank_spacing = [((0:3)*0.25);zeros(1,4);zeros(1,4)];
+        shank_vector = permute(probe_default_vector.*probe_length + ...
+            permute(shank_spacing,[1,3,2]),[2,3,1]);
+end
 
 % Draw probe
 probe_line = line(gui_data.handles.axes_atlas, ...
@@ -1102,6 +1117,7 @@ gui_data.probe(new_probe_idx).insertion_point = probe_insertion_point; % Probe r
 gui_data.probe(new_probe_idx).length = probe_length; % Length of probe
 gui_data.probe(new_probe_idx).depth = probe_length;
 gui_data.probe(new_probe_idx).angle = [0;90;0]; % azimuth, elevation, rotation
+gui_data.probe(new_probe_idx).type = probe_type;
 
 % Set default recording slot (order of creation)
 gui_data.probe(new_probe_idx).recording_slot = new_probe_idx;
@@ -1135,14 +1151,17 @@ if length(gui_data.probe) == 1
 end
 
 % Delete selected probe graphics
-delete(gui_data.probe(gui_data.selected_probe).trajectory);
-delete(gui_data.probe(gui_data.selected_probe).line);
+% (note: needed isgraphics & isa, because isgraphics doesn't distinguish
+% between a handle and a double with the same value)
+probe_fieldnames = fieldnames(gui_data.probe(gui_data.selected_probe));
+probe_isgraphics = cellfun(@(x) ...
+    any(isgraphics(gui_data.probe(gui_data.selected_probe).(x)(:))) & ...
+    ~any(isa(gui_data.probe(gui_data.selected_probe).(x)(:),'double')) ,probe_fieldnames);
+cellfun(@(x) delete(gui_data.probe(gui_data.selected_probe).(x)), ...
+    probe_fieldnames(probe_isgraphics));
 
-% Delete selected probe data and handles
-gui_data.probe(gui_data.selected_probe).trajectory = [];
-gui_data.probe(gui_data.selected_probe).line = [];
-gui_data.probe(gui_data.selected_probe).length = [];
-gui_data.probe(gui_data.selected_probe).angle = [];
+% Remove selected probe data
+gui_data.probe(gui_data.selected_probe) = [];
 
 % Update guidata
 guidata(probe_atlas_gui,gui_data);
