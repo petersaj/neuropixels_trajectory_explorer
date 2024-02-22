@@ -10,8 +10,7 @@
 % TO DO 2.0 update: 
 % - save/load
 % - newscale connection
-% -- angles are off
-% -- ideally use built-in calculation, use MPM as only trajectory control
+% -- roll isn't given in query
 % - recording connection
 
 function neuropixels_trajectory_explorer
@@ -877,7 +876,7 @@ end
 
 % Update the text
 % (manipulator angles)
-probe_angle_text = sprintf('Probe angle:     % .0f%c az.,  % .0f%c el., % .0f%c rot.', ...
+probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth,  % .0f%c elevation, % .0f%c roll', ...
     gui_data.probe(gui_data.selected_probe).angle(1),char(176), ...
     gui_data.probe(gui_data.selected_probe).angle(2),char(176), ...
     gui_data.probe(gui_data.selected_probe).angle(3),char(176));
