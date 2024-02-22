@@ -329,8 +329,8 @@ switch eventdata.Key
         elseif any(strcmp(eventdata.Modifier,'shift'))
             angle_ap_offset = step_size_position;
         elseif any(strcmp(eventdata.Modifier,'alt'))
-            gui_data.probe(gui_data.selected_probe).depth = ...
-                gui_data.probe(gui_data.selected_probe).depth - step_size_position;
+            gui_data.probe(gui_data.selected_probe).dv = ...
+                gui_data.probe(gui_data.selected_probe).dv - step_size_position;
             update_probe_flag = true;
             guidata(probe_atlas_gui,gui_data);
         end
@@ -340,8 +340,8 @@ switch eventdata.Key
         elseif any(strcmp(eventdata.Modifier,'shift'))
             angle_ap_offset = -step_size_position;
         elseif any(strcmp(eventdata.Modifier,'alt'))
-            gui_data.probe(gui_data.selected_probe).depth = ...
-                gui_data.probe(gui_data.selected_probe).depth + step_size_position;
+            gui_data.probe(gui_data.selected_probe).dv = ...
+                gui_data.probe(gui_data.selected_probe).dv + step_size_position;
             update_probe_flag = true;
             guidata(probe_atlas_gui,gui_data);
         end
@@ -377,10 +377,9 @@ set(gui_data.probe(gui_data.selected_probe).trajectory,'XData', ...
 set(gui_data.probe(gui_data.selected_probe).trajectory,'YData', ...
     old_trajectory_vector{2} + repmat(ap_offset,1,2) + [0,angle_ap_offset]);
 
-% Update affine/depth position (only if insertion point doesn't change)
+% Update position (only if insertion point doesn't change)
 if update_probe_flag
-    update_probe_affine_position(probe_atlas_gui);
-    update_probe_depth_position(probe_atlas_gui);
+    update_probe_position(probe_atlas_gui);
 end
 
 % Upload gui_data
@@ -399,9 +398,8 @@ if ~isfield(gui_data,'selected_probe')
 end
 
 % On any key release: update the probe coordinates/position and slice
-update_probe_affine_position(probe_atlas_gui);
+update_probe_position(probe_atlas_gui);
 update_probe_areas_coordinates(probe_atlas_gui);
-update_probe_depth_position(probe_atlas_gui);
 update_slice(probe_atlas_gui);
 
 end
@@ -595,9 +593,8 @@ gui_data.probe(gui_data.selected_probe).angle = probe_angle;
 guidata(probe_atlas_gui, gui_data);
 
 % Update probe and slice
-update_probe_affine_position(probe_atlas_gui);
+update_probe_position(probe_atlas_gui);
 update_probe_areas_coordinates(probe_atlas_gui);
-update_probe_depth_position(probe_atlas_gui);
 update_slice(probe_atlas_gui);
 
 end
@@ -652,15 +649,16 @@ gui_data.probe(gui_data.selected_probe).angle = probe_angle;
 guidata(probe_atlas_gui, gui_data);
 
 % Update probe and slice
-update_probe_affine_position(probe_atlas_gui);
+update_probe_position(probe_atlas_gui);
 update_probe_areas_coordinates(probe_atlas_gui);
-update_probe_depth_position(probe_atlas_gui);
 update_slice(probe_atlas_gui);
 
 end
 
 
-function gui_data = update_probe_affine_position(probe_atlas_gui)
+function gui_data = update_probe_position(probe_atlas_gui)
+% Update the probe position position relative to trajectory vector angles,
+% stored rotation angle, and stored DV position
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -694,11 +692,21 @@ shank_ref_vec_flat = reshape(permute(shank_ref_vec,[3,1,2]),3,[]);
 shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
 shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
+%%%%% TO DO: APPLY DV OFFSET TO SHANK VECTOR TO GET DEPTH
+% Get current probe (reference shank) DV position
+ref_shank = 1; % to do: define this somewhere else
+dv_target = gui_data.probe(gui_data.selected_probe).dv;
+
+dv_ref = shank_vector(:,ref_shank,3);
+new_probe_position = reshape(interp1(dv_ref, ...
+    reshape(shank_vector,2,[]), ...
+    dv_target-[diff(dv_ref),0],'linear','extrap'),size(shank_vector));
+
 % Update shank line positions
 for curr_shank = 1:size(shank_vector,2)
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = shank_vector(:,curr_shank,1);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = shank_vector(:,curr_shank,2);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = shank_vector(:,curr_shank,3);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = new_probe_position(:,curr_shank,1);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = new_probe_position(:,curr_shank,2);
+    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = new_probe_position(:,curr_shank,3);
 end
 
 % Update probe angles
@@ -712,6 +720,7 @@ guidata(probe_atlas_gui, gui_data);
 end
 
 function update_probe_areas_coordinates(probe_atlas_gui,varargin)
+% Update the areas and coordinates for the current probe position
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -767,7 +776,10 @@ if isempty(insertion_point)
     return
 end
 
-% Get area depths relative to insertion coordinates
+% Get current depth of probe relative to insertion coordinate
+probe_depth = pdist2(insertion_point,probe_vector(2,:,ref_shank));
+
+% Get area depths relative to insertion coordinate
 probe_areas_plot_depth = pdist2(insertion_point, ...
     probe_sample_points_bregma(plot_probe_areas_idx,:,ref_shank))';
 
@@ -840,7 +852,7 @@ end
     deal(insertion_point(1),insertion_point(2),insertion_point(3));
 
 % Update area plot (user-selected zoom as probe or full trajectory)
-probe_depth_limits = gui_data.probe(gui_data.selected_probe).depth - ...
+probe_depth_limits = probe_depth - ...
     [gui_data.probe(gui_data.selected_probe).length,0];
 
 gui_data.handles.axes_probe_areas_probelimits.Position = ...
@@ -871,7 +883,10 @@ probe_angle_text = sprintf('Probe angle:     % .0f%c az.,  % .0f%c el., % .0f%c 
     gui_data.probe(gui_data.selected_probe).angle(3),char(176));
 % (probe insertion point and depth)
 probe_insertion_text = sprintf('Probe insertion: % .2f AP, % .2f ML, % .2f depth', ...
-    insertion_point(2),insertion_point(1),probe_depth_limits(2));
+    insertion_point(2),insertion_point(1),probe_depth);
+% (probe tip)
+probe_tip_text = sprintf('Probe tip:   % .2f AP, % .2f ML, % .2f DV', ...
+    probe_vector(2,[2,1,3],ref_shank));
 % (bregma-lambda distance for scaling)
 bregma_lambda_text = sprintf('Bregma-Lambda distance: % .2f mm', ...
     gui_data.bregma_lambda_distance_curr);
@@ -890,7 +905,8 @@ if isfield(gui_data,'connection')
 end
 
 % (combine and update)
-probe_text = {probe_angle_text,probe_insertion_text,bregma_lambda_text, ...
+probe_text = {probe_angle_text,probe_insertion_text, ...
+    probe_tip_text,bregma_lambda_text, ...
     manipulator_text,recording_text};
 set(gui_data.probe_coordinates_text,'String',probe_text(cellfun(@(x) ~isempty(x),probe_text)));
 
@@ -910,42 +926,6 @@ guidata(probe_atlas_gui, gui_data);
 
 end
 
-function update_probe_depth_position(probe_atlas_gui)
-
-% Get guidata
-gui_data = guidata(probe_atlas_gui);
-
-% Get current probe location
-curr_probe_position = permute(cell2mat(permute(get( ...
-    gui_data.probe(gui_data.selected_probe).line, ...
-    {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);
-
-% Get depth relative to insertion point
-insertion_point = cell2mat(get( ...
-    gui_data.probe(gui_data.selected_probe).insertion_point, ...
-    {'XData','YData','ZData'}));
-
-ref_shank = 1;
-curr_depth_point = squeeze(curr_probe_position(2,:,ref_shank));
-depth_curr = pdist2(curr_depth_point,insertion_point) - ...
-    [gui_data.probe(gui_data.selected_probe).length,0];
-
-% Get target depth
-depth_target = [-gui_data.probe(gui_data.selected_probe).length,0] + ...
-    gui_data.probe(gui_data.selected_probe).depth;
-
-% Interpolate shank position at depth positions
-new_probe_position = reshape(interp1(depth_curr,reshape(curr_probe_position,2,[]), ...
-    depth_target,'linear','extrap'),size(curr_probe_position));
-
-% Update shank line positions
-for curr_shank = 1:size(new_probe_position,3)
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).XData = new_probe_position(:,1,curr_shank);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).YData = new_probe_position(:,2,curr_shank);
-    gui_data.probe(gui_data.selected_probe).line(curr_shank).ZData = new_probe_position(:,3,curr_shank);
-end
-
-end
 
 function update_brain_scale(probe_atlas_gui,bregma_lambda_distance)
 % Update the scaling of the brain based on the bregma-lambda distance
@@ -1108,7 +1088,7 @@ gui_data.probe(new_probe_idx).reference_vector = shank_vector; % Default probe p
 gui_data.probe(new_probe_idx).line = probe_line; % Probe reference line on 3D atlas
 gui_data.probe(new_probe_idx).insertion_point = probe_insertion_point; % Probe reference line on 3D atlas
 gui_data.probe(new_probe_idx).length = probe_length; % Length of probe
-gui_data.probe(new_probe_idx).depth = probe_length;
+gui_data.probe(new_probe_idx).dv = probe_length;
 gui_data.probe(new_probe_idx).angle = [0;90;0]; % azimuth, elevation, rotation
 gui_data.probe(new_probe_idx).type = probe_type;
 
@@ -1890,12 +1870,12 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     newscale_probe_info = gui_data.connection.manipulator.client.AppData.GetProbe(curr_newscale_probe-1);
 
     % Get tip position of probe (MPM convention: -Z is down)
-    probe_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
+    mpm_tip = [newscale_probe_info.Tip_X_ML; newscale_probe_info.Tip_Y_AP; -newscale_probe_info.Tip_Z_DV];
 
     % Check if any changes to probe (if not, skip)
     curr_probe_position = cell2mat(get(gui_data.probe(curr_newscale_probe).line, ...
         {'XData','YData','ZData'})');
-    if all(probe_tip == curr_probe_position(:,2))
+    if all(mpm_tip == curr_probe_position(:,2))
         continue
     end
 
@@ -1904,34 +1884,20 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     % (MPM convention: Polar is relative to Posterior Angle, Pitch: 0 is vertical)
     mpm2nte_angles = ...
         [newscale_probe_info.Polar-double(gui_data.connection.manipulator.client.AppData.PosteriorAngle), ...
-        90-newscale_probe_info.Pitch,newscale_probe_info.Roll];
+        90-newscale_probe_info.Pitch, ...
+        newscale_probe_info.Roll];
 
-    % (using length of recording sites, not full length of the probe from VCS)
-    [x,y,z] = sph2cart( ...
-        deg2rad(90-mpm2nte_angles(1)),  ...
-        deg2rad(180+mpm2nte_angles(2)), ...
-        gui_data.probe(curr_newscale_probe).length);
-    probe_top = probe_tip + [x; y; z];
-
-    % Add DV offset relative to zeroing at brain surface (if applicable)
+    % Get DV offset relative to zeroing at brain surface (if applicable)
     if isfield(gui_data,'manipulator_dv_offset') && ...
             length(gui_data.manipulator_dv_offset) >= curr_newscale_probe
-        manipulator_dv_offset = [0;0;gui_data.manipulator_dv_offset(curr_newscale_probe)];
+        manipulator_dv_offset = gui_data.manipulator_dv_offset(curr_newscale_probe);
     else
-        manipulator_dv_offset = zeros(3,1);
+        manipulator_dv_offset = 0;
     end
 
-    % Set probe vector
-    probe_vector = [probe_top, probe_tip] + manipulator_dv_offset;
-
-    % Update angles
+    % Update DV and angles
+    gui_data.probe(curr_newscale_probe).dv = mpm_tip(3) + manipulator_dv_offset;
     gui_data.probe(curr_newscale_probe).angle = mpm2nte_angles;
-
-    % Change probe location
-    set(gui_data.probe(curr_newscale_probe).line, ...
-        'XData',probe_vector(1,:), ...
-        'YData',probe_vector(2,:), ...
-        'ZData',probe_vector(3,:));
 
     % Update the probe and trajectory reference
     ml_lim = xlim(gui_data.handles.axes_atlas);
@@ -1943,14 +1909,14 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
         deg2rad(180+mpm2nte_angles(2)), ...
         -max_ref_length);
 
-    % Move probe reference (draw line through point and DV 0 with max length)
-    probe_ref_top_ap = interp1(probe_vector(3,2)+[0,z],probe_vector(2,2)+[0,y],0,'linear','extrap');
-    probe_ref_top_ml = interp1(probe_vector(3,2)+[0,z],probe_vector(1,2)+[0,x],0,'linear','extrap');
+    % Move trajectory (draw line through point and DV 0 with max length)
+    trajectory_top_ap = interp1(mpm_tip(3)+[0,z],mpm_tip(2)+[0,y],0,'linear','extrap');
+    trajectory_top_ml = interp1(mpm_tip(3)+[0,z],mpm_tip(1)+[0,x],0,'linear','extrap');
 
-    probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
-    probe_ref_bottom = probe_ref_top + [x,y,z];
+    trajectory_top = [trajectory_top_ml,trajectory_top_ap,0];
+    trajectory_bottom = trajectory_top + [x,y,z];
 
-    trajectory_vector = [probe_ref_top;probe_ref_bottom]';
+    trajectory_vector = [trajectory_top;trajectory_bottom]';
 
     set(gui_data.probe(curr_newscale_probe).trajectory, ...
         'XData',trajectory_vector(1,:), ...
@@ -1973,10 +1939,9 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     newscale_selected_probe = max(gui_data.connection.manipulator.client.AppData.SelectedProbe+1,1);
     select_probe(gui_data.probe(newscale_selected_probe).line,[],probe_atlas_gui)
 
-    % Update the slice and probe coordinates
+    % Update probe and slice
+    update_probe_position(probe_atlas_gui);
     update_probe_areas_coordinates(probe_atlas_gui);
-
-    % Update slice
     update_slice(probe_atlas_gui);
 
 end
