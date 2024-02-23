@@ -876,7 +876,7 @@ end
 
 % Update the text
 % (manipulator angles)
-probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth,  % .0f%c elevation, % .0f%c roll', ...
+probe_angle_text = sprintf('Probe angle:     % .0f%c azimuth,  % .0f%c elevation, % .0f%c rotation', ...
     gui_data.probe(gui_data.selected_probe).angle(1),char(176), ...
     gui_data.probe(gui_data.selected_probe).angle(2),char(176), ...
     gui_data.probe(gui_data.selected_probe).angle(3),char(176));
@@ -1564,59 +1564,126 @@ gui_data = guidata(probe_atlas_gui);
 
 n_probes = length(gui_data.probe);
 
-% Get CCF coordinates of the top/bottom of the probe
-[probe_ml_ccf,probe_ap_ccf,probe_dv_ccf] = ...
-    transformPointsInverse(gui_data.ccf_bregma_tform, ...
-    vertcat(gui_data.probe.line.XData), ...
-    vertcat(gui_data.probe.line.YData), ...
-    vertcat(gui_data.probe.line.ZData));
+% Get CCF coordinates for the probe (dim x start/end x shank)
+probe_positions_ccf = cell(n_probes,1);
+for curr_probe = 1:n_probes
+     probe_position = permute(cell2mat(permute(get( ...
+        gui_data.probe(curr_probe).line, ...
+        {'XData','YData','ZData'}),[1,3,2])),[3,2,1]);
 
-% Package into CCF coordinates by probe ([AP,DV,ML])
-probe_positions_ccf = squeeze(mat2cell(permute(cat(3, ...
-    probe_ap_ccf,probe_dv_ccf,probe_ml_ccf),[3,2,1]), ...
-    3,2,ones(n_probes,1)));
+     probe_position_ccf = ...
+         reshape(transformPointsInverse(gui_data.ccf_bregma_tform, ...
+         reshape(probe_position,3,[])')',size(probe_position));
 
-% Get positions along each probe
+     probe_positions_ccf{curr_probe} = probe_position_ccf;
+end
+
+% Get areas along each probe
+% (mostly copied from update_area - ideally don't copy code)
 probe_areas = cell(n_probes,1);
 for curr_probe = 1:n_probes
 
-    % Sample areas along probe every 1um
-    probe_vector = cell2mat(get(gui_data.probe(curr_probe).line,{'XData','YData','ZData'})');
-    probe_n_coords = round(norm(diff(probe_vector,[],2))*1000);
-    probe_coords_depth = linspace(0,gui_data.probe.length(curr_probe)*1000-1,probe_n_coords);
+    % Get current probe location
+    probe_vector = permute(cell2mat(permute(get( ...
+        gui_data.probe(curr_probe).line, ...
+        {'XData','YData','ZData'}),[1,3,2])),[2,3,1]);
 
-    [probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma] = deal( ...
-        linspace(probe_vector(1,1),probe_vector(1,2),probe_n_coords), ...
-        linspace(probe_vector(2,1),probe_vector(2,2),probe_n_coords), ...
-        linspace(probe_vector(3,1),probe_vector(3,2),probe_n_coords));
+    n_shanks = size(probe_vector,3);
 
-    [probe_ml_coords_ccf,probe_ap_coords_ccf,probe_dv_coords_ccf] = ...
-        transformPointsInverse(gui_data.ccf_bregma_tform, ...
-        probe_ml_coords_bregma,probe_ap_coords_bregma,probe_dv_coords_bregma);
+    % Interpolate to extremes of probe range
+    ml_lim = xlim(gui_data.handles.axes_atlas);
+    ap_lim = ylim(gui_data.handles.axes_atlas);
+    dv_lim = zlim(gui_data.handles.axes_atlas);
+    max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
 
-    probe_coords_ccf = ...
-        round([probe_ap_coords_ccf;probe_dv_coords_ccf;probe_ml_coords_ccf]);
-    probe_coords_ccf_inbounds = all(probe_coords_ccf > 0 & ...
-        probe_coords_ccf <= size(gui_data.av)',1);
+    sample_points = (-max_ref_length:0.001:max_ref_length)';
+    probe_sample_points_bregma = reshape( ...
+        interp1([0,gui_data.probe(curr_probe).length], ...
+        reshape(probe_vector,2,[]), ...
+        sample_points,'linear','extrap'), ...
+        [length(sample_points),size(probe_vector,[2,3])]);
 
-    probe_location_idx = ...
+    probe_sample_points_ccf_flat = ...
+        round(transformPointsInverse(gui_data.ccf_bregma_tform, ...
+        reshape(permute(probe_sample_points_bregma,[1,3,2]),[],3)));
+
+    inbounds_idx = all(probe_sample_points_ccf_flat > 0 & ...
+        probe_sample_points_ccf_flat <= size(gui_data.av,[3,1,2]),2);
+
+    probe_sample_ccf_idx = ...
         sub2ind(size(gui_data.av), ...
-        round(probe_ap_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_dv_coords_ccf(probe_coords_ccf_inbounds)), ...
-        round(probe_ml_coords_ccf(probe_coords_ccf_inbounds)))';
+        probe_sample_points_ccf_flat(inbounds_idx,2), ...
+        probe_sample_points_ccf_flat(inbounds_idx,3), ...
+        probe_sample_points_ccf_flat(inbounds_idx,1));
 
-    % Get boundaries of areas and area IDs
-    probe_area_idx_sampled = ones(probe_n_coords,1);
-    probe_area_idx_sampled(probe_coords_ccf_inbounds) = gui_data.av(probe_location_idx);
-    probe_area_bins = [1;(find(diff(probe_area_idx_sampled)~= 0)+1);probe_n_coords];
-    probe_area_boundaries = [probe_area_bins(1:end-1),probe_area_bins(2:end)];
+    probe_av_idx = ones(length(sample_points),n_shanks);
+    probe_av_idx(inbounds_idx) = gui_data.av(probe_sample_ccf_idx);
 
-    probe_area_idx = probe_area_idx_sampled(probe_area_boundaries(:,1));
+    % Only plot areas that have index >1 (in-brain)
+    plot_probe_areas_idx = find(any(probe_av_idx > 1,2));
+    probe_areas_plot = probe_av_idx(plot_probe_areas_idx,:);
 
-    % Store structure tree entries for probe areas (ammend start depth for each area)
-    store_areas_idx = probe_area_idx > 1; % only use areas in brain (idx > 1)
-    curr_probe_areas = gui_data.st(probe_area_idx(store_areas_idx),:);
-    curr_probe_areas.probe_depth = probe_coords_depth(probe_area_boundaries(store_areas_idx,:));
+    % Get insertion coordinate
+    ref_shank = 1; % to do: define this somewhere else
+    insertion_point = probe_sample_points_bregma( ...
+        plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
+
+    if isempty(insertion_point)
+        % (don't update if there isn't an insertion point)
+        set(gui_data.probe_coordinates_text,'String','Probe trajectory is outside brain');
+        return
+    end
+
+    % Get current depth of probe relative to insertion coordinate
+    probe_depth = pdist2(insertion_point,probe_vector(2,:,ref_shank));
+
+    % Get area depths relative to insertion coordinate
+    probe_areas_plot_depth = pdist2(insertion_point, ...
+        probe_sample_points_bregma(plot_probe_areas_idx,:,ref_shank))';
+
+    % Get colors for all areas (draw white lines between areas)
+    probe_areas_hexcolors = gui_data.st.color_hex_triplet(probe_areas_plot);
+    probe_areas_rgbcolors = cell2mat(cellfun(@(x) ...
+        permute(hex2dec({x(1:2),x(3:4),x(5:6)})'./255,[1,3,2]), ...
+        probe_areas_hexcolors,'uni',false));
+    for curr_shank = 1:n_shanks
+        probe_areas_rgbcolors(imdilate(boundarymask( ...
+            probe_areas_plot(:,curr_shank)),ones(20,1)),curr_shank,:) = 1;
+    end
+
+    % Get depth boundaries and structure tree entries for all regions
+    if ~isfield(gui_data,'display_region_name')
+        gui_data.display_region_name = 'acronym';
+    end
+
+    probe_area_boundaries = cell(n_shanks,1);
+    probe_area_st = cell(n_shanks,1);
+    for curr_shank = 1:n_shanks
+
+        shank_areas_plot = probe_areas_plot(:,curr_shank);
+        shank_areas_boundaries_idx = intersect(unique( ...
+            [find(shank_areas_plot ~= 1,1,'first'); ...
+            find(diff(shank_areas_plot) ~= 0); ...
+            find(shank_areas_plot ~= 1,1,'last')]), ...
+            find(shank_areas_plot ~= 1));
+        shank_areas_centers_idx = round(shank_areas_boundaries_idx(1:end-1) + ...
+            diff(shank_areas_boundaries_idx)/2);
+
+        probe_area_bins = ...
+            probe_areas_plot_depth(shank_areas_boundaries_idx);
+
+        probe_area_boundaries{curr_shank} = ...
+            [probe_area_bins(1:end-1),probe_area_bins(2:end)];
+        probe_area_st{curr_shank} = ...
+            gui_data.st(probe_areas_plot(shank_areas_centers_idx,curr_shank),:);
+
+    end
+
+    % Concatenate across shanks and store
+    curr_probe_areas = vertcat(probe_area_st{:});
+    curr_probe_areas.probe_depth = vertcat(probe_area_boundaries{:});
+    curr_probe_areas.probe_shank = cell2mat(cellfun(@(shank,areas) ...
+        repmat(shank,size(areas,1),1),num2cell(1:n_shanks)',probe_area_st,'uni',false));
 
     probe_areas{curr_probe} = curr_probe_areas;
 
