@@ -8,9 +8,6 @@
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
 % TO DO 2.0 update: 
-% - save/load
-% - newscale connection
-% -- roll isn't given in query
 % - recording connection
 
 function neuropixels_trajectory_explorer
@@ -150,7 +147,7 @@ grid on;
 
 % Set up the text to display coordinates
 gui_position_px = getpixelposition(probe_atlas_gui);
-probe_coordinates_text = annotation('textbox','String','', ...
+probe_coordinates_text = annotation('textbox','String','No probe selected', ...
     'Units','normalized','Position',[0,0,1,1],'VerticalAlignment','top', ...
     'FontSize',12,'FontName','Consolas','PickableParts','none');
 
@@ -178,7 +175,6 @@ uimenu(probe_controls_menu,'Text','Add probe','MenuSelectedFcn',{@probe_add,prob
 uimenu(probe_controls_menu,'Text','Remove selected probe','MenuSelectedFcn',{@probe_remove,probe_atlas_gui});
 uimenu(probe_controls_menu,'Text','Set entry','MenuSelectedFcn',{@set_probe_entry,probe_atlas_gui});
 uimenu(probe_controls_menu,'Text','Set endpoint','MenuSelectedFcn',{@set_probe_endpoint,probe_atlas_gui});
-uimenu(probe_controls_menu,'Text','Probe properties','MenuSelectedFcn',{@probe_properties,probe_atlas_gui});
 
 scaling_menu = uimenu(probe_atlas_gui,'Text','Brain scaling');
 uimenu(scaling_menu,'Text','Set bregma-lambda distance','MenuSelectedFcn',{@set_bregma_lambda_distance,probe_atlas_gui});
@@ -213,6 +209,7 @@ uimenu(manipulator_menu,'Text','Scientifica Patchstar','MenuSelectedFcn',{@conne
 record_menu = uimenu(connect_menu,'Text','Recording');
 uimenu(record_menu,'Text','OpenEphys','MenuSelectedFcn',{@connect_openephys,probe_atlas_gui});
 uimenu(record_menu,'Text','SpikeGLX','MenuSelectedFcn',{@connect_spikeglx,probe_atlas_gui});
+uimenu(record_menu,'Text','Set recording slot','MenuSelectedFcn',{@set_probe_recording_slot,probe_atlas_gui});
 
 saveload_menu = uimenu(probe_atlas_gui,'Text','Save/Load');
 uimenu(saveload_menu,'Text','Save positions','MenuSelectedFcn',{@save_probe_positions,probe_atlas_gui});
@@ -305,7 +302,7 @@ function key_press(probe_atlas_gui,eventdata)
 gui_data = guidata(probe_atlas_gui);
 
 % If no probes are selected, do nothing
-if ~isfield(gui_data,'selected_probe')
+if ~isfield(gui_data,'selected_probe') || isempty(gui_data.selected_probe)
     return
 end
 
@@ -392,7 +389,7 @@ function key_release(probe_atlas_gui,eventdata)
 gui_data = guidata(probe_atlas_gui);
 
 % If no probes are selected, do nothing
-if ~isfield(gui_data,'selected_probe')
+if ~isfield(gui_data,'selected_probe') || isempty(gui_data.selected_probe)
     return
 end
 
@@ -691,9 +688,8 @@ shank_ref_vec_flat = reshape(permute(shank_ref_vec,[3,1,2]),3,[]);
 shank_vector_flat = R_probe*shank_ref_vec_flat + shank_translate;
 shank_vector = permute(reshape(shank_vector_flat,3,2,[]),[2 3 1]);
 
-%%%%% TO DO: APPLY DV OFFSET TO SHANK VECTOR TO GET DEPTH
 % Get current probe (reference shank) DV position
-ref_shank = 1; % to do: define this somewhere else
+ref_shank = gui_data.probe(gui_data.selected_probe).ref_shank;
 dv_target = gui_data.probe(gui_data.selected_probe).dv;
 
 dv_ref = shank_vector(:,ref_shank,3);
@@ -765,7 +761,7 @@ plot_probe_areas_idx = find(any(probe_areas > 1,2));
 probe_areas_plot = probe_areas(plot_probe_areas_idx,:);
 
 % Get insertion coordinate
-ref_shank = 1; % to do: define this somewhere else
+ref_shank = gui_data.probe(gui_data.selected_probe).ref_shank;
 insertion_point = probe_sample_points_bregma( ...
     plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
 
@@ -1015,21 +1011,8 @@ msgbox({'\fontsize{16}\bfProbe controls: ', ...
 
 end
 
-function probe_add(~,~,probe_atlas_gui)
+function probe_add(~,~,probe_atlas_gui,probe_type)
 % Add probe
-
-% Select probe type
-probe_types = {'Neuropixels 1.0','Neuropixels 2.0'};
-[probe_type_idx,probe_type_selected] = listdlg( ...
-    'PromptString','Choose probe type','ListString',probe_types, ...
-    'SelectionMode','single');
-
-if ~probe_type_selected
-   % If no probe selected, do nothing
-    return
-else
-    probe_type = probe_types{probe_type_idx};
-end
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1041,6 +1024,21 @@ if ~isfield(gui_data,'probe')
 else
     % (additional probes)
     new_probe_idx = length(gui_data.probe) + 1;
+end
+
+% Select probe type (if not input)
+if nargin < 4 || isempty(probe_type)
+    probe_types = {'Neuropixels 1.0','Neuropixels 2.0'};
+    [probe_type_idx,probe_type_selected] = listdlg( ...
+        'PromptString',sprintf('Probe %d: choose type',new_probe_idx), ...
+        'ListString',probe_types, ...
+        'SelectionMode','single');
+    if ~probe_type_selected
+        % If no probe selected, do nothing
+        return
+    else
+        probe_type = probe_types{probe_type_idx};
+    end
 end
 
 % Draw probe trajectory
@@ -1091,6 +1089,7 @@ gui_data.probe(new_probe_idx).length = probe_length; % Length of probe
 gui_data.probe(new_probe_idx).dv = probe_length;
 gui_data.probe(new_probe_idx).angle = [0;90;0]; % azimuth, elevation, rotation
 gui_data.probe(new_probe_idx).type = probe_type;
+gui_data.probe(new_probe_idx).ref_shank = 1;
 
 % Set default recording slot (order of creation)
 gui_data.probe(new_probe_idx).recording_slot = new_probe_idx;
@@ -1139,17 +1138,24 @@ gui_data.probe(gui_data.selected_probe) = [];
 % Update guidata
 guidata(probe_atlas_gui,gui_data);
 
-% If there are remaining probes, auto-select first probe
 if ~isempty(gui_data.probe)
+    % If there are remaining probes, auto-select first probe
     select_probe(gui_data.probe(1).line,[],probe_atlas_gui);
     update_probe_areas_coordinates(probe_atlas_gui);
     update_slice(probe_atlas_gui);
+else
+    % If there are no probes, clear selected and update text
+    set(gui_data.probe_coordinates_text,'String','No probe selected');
+    gui_data.selected_probe = [];
+
+    % Update guidata
+    guidata(probe_atlas_gui,gui_data);
 end
 
 
 end
 
-function probe_properties(~,~,probe_atlas_gui)
+function set_probe_recording_slot(~,~,probe_atlas_gui)
 % Set probe properties
 
 % Get guidata
@@ -1157,28 +1163,28 @@ gui_data = guidata(probe_atlas_gui);
 n_probes = length(gui_data.probe);
 
 % Create editable properties box
-probe_properties_fig = uifigure('Name','Set probe properties');
-probe_properties_grid = uigridlayout(probe_properties_fig,[2,2]);
-probe_properties_grid.RowHeight = {'7x','1x'};
+probe_slot_fig = uifigure('Name','Set probe properties');
+probe_slot_grid = uigridlayout(probe_slot_fig,[2,2]);
+probe_slot_grid.RowHeight = {'7x','1x'};
 
 probe_recording_slots = num2cell(vertcat(gui_data.probe.recording_slot));
-probe_types = {gui_data.probe.type};
+probe_types = {gui_data.probe.type}';
 probe_properties = [probe_types,probe_recording_slots];
 
-probe_properties_table = uitable(probe_properties_grid, ...
+probe_properties_table = uitable(probe_slot_grid, ...
     'ColumnName',{'Probe type','Recording slot'}, ...
     'ColumnFormat',{'char','numeric'}, ...
     'ColumnEditable',[false,true], ...
     'RowName',arrayfun(@(x) sprintf('Probe %d',x),1:n_probes,'uni',false), ...
     'Data',probe_properties);
 probe_properties_table.Layout.Column = [1,2];
-uibutton(probe_properties_grid,'push', ...
-    'Text','Save','ButtonPushedFcn',{@probe_properties_save,probe_atlas_gui});
-uibutton(probe_properties_grid,'push', ...
-    'Text','Cancel','ButtonPushedFcn',@probe_properties_cancel);
+uibutton(probe_slot_grid,'push', ...
+    'Text','Save','ButtonPushedFcn',{@set_probe_recording_slot_save,probe_atlas_gui});
+uibutton(probe_slot_grid,'push', ...
+    'Text','Cancel','ButtonPushedFcn',@set_probe_recording_slot_cancel);
 
 % Probe properties box functions
-    function probe_properties_save(obj,eventdata,probe_atlas_gui)
+    function set_probe_recording_slot_save(obj,eventdata,probe_atlas_gui)
         % Get guidata
         gui_data = guidata(probe_atlas_gui);
 
@@ -1191,7 +1197,7 @@ uibutton(probe_properties_grid,'push', ...
         % Close properties box
         close(obj.Parent.Parent);
     end
-    function probe_properties_cancel(obj,eventdata)
+    function set_probe_recording_slot_cancel(obj,eventdata)
         % Close properties box
         close(obj.Parent.Parent);
     end
@@ -1625,7 +1631,7 @@ for curr_probe = 1:n_probes
     probe_areas_plot = probe_av_idx(plot_probe_areas_idx,:);
 
     % Get insertion coordinate
-    ref_shank = 1; % to do: define this somewhere else
+    ref_shank = gui_data.probe(curr_probe).ref_shank;
     insertion_point = probe_sample_points_bregma( ...
         plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
 
@@ -1690,10 +1696,16 @@ for curr_probe = 1:n_probes
 
 end
 
+% Get probe properties
+probe_angles_cat = horzcat(gui_data.probe.angle);
+probe_properties = struct( ...
+    'probe_type',{gui_data.probe.type}, ...
+    'rotation_angle',num2cell(probe_angles_cat(3,:)));
+
 % Choose file location and save
 [save_file,save_path] = uiputfile('probe_positions.mat','Save probe positions as...');
 save_filename = fullfile(save_path,save_file);
-save(save_filename,'probe_positions_ccf','probe_areas');
+save(save_filename,'probe_positions_ccf','probe_areas','probe_properties');
 
 end
 
@@ -1707,84 +1719,74 @@ gui_data = guidata(probe_atlas_gui);
 probe_filename = fullfile(probe_path,probe_file);
 load(probe_filename);
 
-% Convert cell to matrix [probe,top/bottom,coord]
-probe_positions_ccf_cat = ...
-    cell2mat(reshape(probe_positions_ccf,1,1,[]));
-
-% Transform CCF ([AP,DV,ML]) to bregma coordinates
-[probe_ml_bregma,probe_ap_bregma,probe_dv_bregma] = ...
-    transformPointsForward(gui_data.ccf_bregma_tform, ...
-    probe_positions_ccf_cat(3,:,:), ...
-    probe_positions_ccf_cat(1,:,:), ...
-    probe_positions_ccf_cat(2,:,:));
-
-probe_vector = [probe_ml_bregma;probe_ap_bregma;probe_dv_bregma];
-
-% Set number of probes equal to loaded probe number
-load_n_probes = length(probe_positions_ccf);
-curr_n_probes = length(gui_data.probe);
-if curr_n_probes > load_n_probes
-    for i = 1:(curr_n_probes - load_n_probes)
+% Remove any pre-existing probes
+if isfield(gui_data,'probe') && ~isempty(gui_data.probe)
+    extant_n_probes = length(gui_data.probe);
+    for i = 1:extant_n_probes
         probe_remove([],[],probe_atlas_gui);
         gui_data = guidata(probe_atlas_gui);
     end
-elseif curr_n_probes < load_n_probes
-    for i = 1:(load_n_probes - curr_n_probes)
-        probe_add([],[],probe_atlas_gui);
-        gui_data = guidata(probe_atlas_gui);
+end
+
+% Create and position each saved probe
+for curr_probe = 1:length(probe_positions_ccf)
+
+    % Create probe
+    % (use stored probe type, or guess from shank number if not)
+    if exist('probe_properties','var')
+        probe_type = probe_properties(curr_probe).probe_type;
+    else
+        switch size(probe_positions_ccf{curr_probe},3)
+            case 1
+                probe_type = 'Neuropixels 1.0';
+            case 4
+                probe_type = 'Neuropixels 2.0';
+        end
     end
-end
+    probe_add([],[],probe_atlas_gui,probe_type);
+    gui_data = guidata(probe_atlas_gui);
 
-% Loop through loaded probes, update data
-for curr_probe = 1:load_n_probes
+    % Convert saved probe coordinates CCF to stereotaxic
+    curr_probe_positions_bregma =  ...
+        reshape(transformPointsForward(gui_data.ccf_bregma_tform, ...
+        reshape(probe_positions_ccf{curr_probe},3,[])')', ...
+        size(probe_positions_ccf{curr_probe}));
 
-    % Set probe location
-    set(gui_data.probe(curr_probe).line, ...
-        'XData',probe_vector(1,:,curr_probe), ...
-        'YData',probe_vector(2,:,curr_probe), ...
-        'ZData',probe_vector(3,:,curr_probe));
+    % Move probe trajectory to align with probe
+    ref_shank = gui_data.probe(curr_probe).ref_shank;
 
-    % Get probe angles
-    [probe_azimuth_sph,probe_elevation_sph] = cart2sph( ...
-        diff(probe_vector(2,:,curr_probe)), ...
-        diff(probe_vector(1,:,curr_probe)), ...
-        diff(probe_vector(3,:,curr_probe)));
-    probe_angle = rad2deg([probe_azimuth_sph,probe_elevation_sph]) + ...
-        [360*(probe_azimuth_sph<0),0];
-    gui_data.probe(curr_probe).angle = probe_angle;
-
-    % Update trajectory reference (draw line through point and DV 0 with max length)
-    ml_lim = xlim(gui_data.handles.axes_atlas);
-    ap_lim = ylim(gui_data.handles.axes_atlas);
     dv_lim = zlim(gui_data.handles.axes_atlas);
-    max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
-    [x,y,z] = sph2cart( ...
-        deg2rad(90-probe_angle(1)),  ...
-        deg2rad(180+probe_angle(2)), ...
-        -max_ref_length);
+    trajectory_endpoints = ...
+        interp1(curr_probe_positions_bregma(3,:,ref_shank), ...
+        curr_probe_positions_bregma(:,:,ref_shank)',dv_lim,'linear','extrap');
 
-    probe_ref_top_ap = interp1(probe_vector(3,2,curr_probe)+[0,z], ...
-        probe_vector(2,2,curr_probe)+[0,y],0,'linear','extrap');
-    probe_ref_top_ml = interp1(probe_vector(3,2,curr_probe)+[0,z], ...
-        probe_vector(1,2,curr_probe)+[0,x],0,'linear','extrap');
+    [gui_data.probe(curr_probe).trajectory.XData, ...
+        gui_data.probe(curr_probe).trajectory.YData, ...
+        gui_data.probe(curr_probe).trajectory.ZData] = deal( ...
+        trajectory_endpoints(:,1), ...
+        trajectory_endpoints(:,2), ...
+        trajectory_endpoints(:,3));
 
-    probe_ref_top = [probe_ref_top_ml,probe_ref_top_ap,0];
-    probe_ref_bottom = probe_ref_top + [x,y,z];
-    trajectory_vector = [probe_ref_top;probe_ref_bottom]';
+    % Set probe DV coordinate
+    gui_data.probe(curr_probe).dv = curr_probe_positions_bregma(3,2,1);
 
-    set(gui_data.probe.trajectory(curr_probe), ...
-        'XData',trajectory_vector(1,:), ...
-        'YData',trajectory_vector(2,:), ...
-        'ZData',trajectory_vector(3,:));
+    % Set probe rotation angle (if stored)
+    if exist('probe_properties','var')
+        gui_data.probe(curr_probe).angle(3) = ...
+            probe_properties(curr_probe).rotation_angle;
+    end
+
+    % Update guidata
+    guidata(probe_atlas_gui,gui_data);
+
+    % Update probe position and coordinates
+    update_probe_position(probe_atlas_gui);
+    update_probe_areas_coordinates(probe_atlas_gui);
 
 end
 
-% Update coordinates/slice
-update_probe_areas_coordinates(probe_atlas_gui);
+% Update slice
 update_slice(probe_atlas_gui);
-
-% Update gui data
-guidata(probe_atlas_gui, gui_data);
 
 end
 
@@ -1952,7 +1954,7 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     mpm2nte_angles = ...
         [newscale_probe_info.Polar-double(gui_data.connection.manipulator.client.AppData.PosteriorAngle), ...
         90-newscale_probe_info.Pitch, ...
-        newscale_probe_info.Roll];
+        newscale_probe_info.ShankOrientation];
 
     % Get DV offset relative to zeroing at brain surface (if applicable)
     if isfield(gui_data,'manipulator_dv_offset') && ...
@@ -1961,9 +1963,10 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
     else
         manipulator_dv_offset = 0;
     end
+    mpm_tip_dv_adjusted = mpm_tip + [0;0;manipulator_dv_offset];
 
     % Update DV and angles
-    gui_data.probe(curr_newscale_probe).dv = mpm_tip(3) + manipulator_dv_offset;
+    gui_data.probe(curr_newscale_probe).dv = mpm_tip_dv_adjusted(3);
     gui_data.probe(curr_newscale_probe).angle = mpm2nte_angles;
 
     % Update the probe and trajectory reference
@@ -1977,8 +1980,8 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
         -max_ref_length);
 
     % Move trajectory (draw line through point and DV 0 with max length)
-    trajectory_top_ap = interp1(mpm_tip(3)+[0,z],mpm_tip(2)+[0,y],0,'linear','extrap');
-    trajectory_top_ml = interp1(mpm_tip(3)+[0,z],mpm_tip(1)+[0,x],0,'linear','extrap');
+    trajectory_top_ap = interp1(mpm_tip_dv_adjusted(3)+[0,z],mpm_tip(2)+[0,y],0,'linear','extrap');
+    trajectory_top_ml = interp1(mpm_tip(3)+[0,z],mpm_tip_dv_adjusted(1)+[0,x],0,'linear','extrap');
 
     trajectory_top = [trajectory_top_ml,trajectory_top_ap,0];
     trajectory_bottom = trajectory_top + [x,y,z];
@@ -2002,16 +2005,19 @@ for curr_newscale_probe = 1:gui_data.connection.manipulator.client.AppData.Probe
         update_brain_scale(probe_atlas_gui,newscale_bregma_lambda_distance);
     end
 
-    % Select MPM-selected probe (0-indexed, unselected = -1 so force >1)
-    newscale_selected_probe = max(gui_data.connection.manipulator.client.AppData.SelectedProbe+1,1);
-    select_probe(gui_data.probe(newscale_selected_probe).line,[],probe_atlas_gui)
-
-    % Update probe and slice
+    % Select current probe and update position
+    select_probe(gui_data.probe(curr_newscale_probe).line,[],probe_atlas_gui)
     update_probe_position(probe_atlas_gui);
-    update_probe_areas_coordinates(probe_atlas_gui);
-    update_slice(probe_atlas_gui);
 
 end
+
+% Select MPM-selected probe (0-indexed, unselected = -1 so force >1)
+newscale_selected_probe = max(gui_data.connection.manipulator.client.AppData.SelectedProbe+1,1);
+select_probe(gui_data.probe(newscale_selected_probe).line,[],probe_atlas_gui)
+
+% Update slice and position for selected probe
+update_probe_areas_coordinates(probe_atlas_gui);
+update_slice(probe_atlas_gui);
 
 end
 
@@ -2093,7 +2099,7 @@ switch new_check
         gui_data.connection.manipulator.client = scientifica_connection;
 
         % Set up timer function for updating probe position
-        manipulator_query_rate = 10; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
+        manipulator_query_rate = 5; % MPM queries per second (hard-coding, 10Hz is fine and ~max)
         gui_data.connection.manipulator.timer_fcn = timer('TimerFcn', ...
             {@get_scientifica_position,probe_atlas_gui}, ...
             'Period', 1/manipulator_query_rate, 'ExecutionMode','fixedSpacing', ...
