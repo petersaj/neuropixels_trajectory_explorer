@@ -152,7 +152,7 @@ probe_coordinates_text = annotation('textbox','String','No probe selected', ...
     'FontSize',12,'FontName','Consolas','PickableParts','none');
 
 % Set up the probe area axes
-axes_probe_areas = axes('Position',[0.85,0.01,0.08,0.95],'TickDir','in');
+axes_probe_areas = axes('Position',[0.80,0.01,0.15,0.95],'TickDir','in');
 axes_probe_areas.ActivePositionProperty = 'position';
 probe_areas_plot = image(axes_probe_areas,[0,1],0,0);
 axes_probe_areas_probelimits = ...
