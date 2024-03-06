@@ -1877,7 +1877,14 @@ switch new_check
         % Add number of MPM-connected probes
         newscale_n_probes = newscale_client.AppData.Probes;
         for i = 1:newscale_n_probes
-            probe_add([],[],probe_atlas_gui);
+            newscale_probe_info = newscale_client.AppData.GetProbe(i-1);
+            switch newscale_probe_info.ShankCount
+                case 1
+                    probe_type = 'Neuropixels 1.0';
+                case 4
+                    probe_type = 'Neuropixels 2.0';
+            end
+            probe_add([],[],probe_atlas_gui,probe_type);
             gui_data = guidata(probe_atlas_gui);
         end
 
