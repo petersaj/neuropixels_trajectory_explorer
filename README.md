@@ -23,4 +23,4 @@ The program does not require any specific software. It was written and can be ru
   * Issues/bugs/suggestions: please open a github issue by clicking on the 'Issues' tab above and pressing the green 'New issue' button
   * Planned updates are marked as "future upgrades" on the issues page (https://github.com/petersaj/neuropixels_trajectory_explorer/issues). If you would like to be notified when a planned update is completed, click into the issue page for that update and hit "subscribe" in the lower right-hand corner
 
-![](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/example_trajectory/1.png)
+![](https://github.com/petersaj/neuropixels_trajectory_explorer/blob/main/wiki/front_image.png)
