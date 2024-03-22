@@ -112,6 +112,7 @@ ccf_rotation_tform = ...
     0 sind(ap_rotation) cosd(ap_rotation) 0; ...
     0 0 0 1];
 
+% Create transform matrix (operates as [ML,AP,DV])
 ccf_bregma_tform_matrix = ccf_translation_tform*ccf_scale_tform*ccf_rotation_tform;
 ccf_bregma_tform = affine3d(ccf_bregma_tform_matrix);
 
@@ -1578,11 +1579,14 @@ for curr_probe = 1:n_probes
         gui_data.probe(curr_probe).line, ...
         {'XData','YData','ZData'}),[1,3,2])),[3,2,1]);
 
-     probe_position_ccf = ...
+     probe_position_ccf_mlapdv = ...
          reshape(transformPointsInverse(gui_data.ccf_bregma_tform, ...
          reshape(probe_position,3,[])')',size(probe_position));
 
-     probe_positions_ccf{curr_probe} = probe_position_ccf;
+     % (put CCF coordinates into native order [AP,DV,ML] and store)
+     probe_position_ccf_apdvml = probe_position_ccf_mlapdv([2,3,1],:);
+
+     probe_positions_ccf{curr_probe} = probe_position_ccf_apdvml;
 end
 
 % Get areas along each probe
@@ -1747,9 +1751,10 @@ for curr_probe = 1:length(probe_positions_ccf)
     gui_data = guidata(probe_atlas_gui);
 
     % Convert saved probe coordinates CCF to stereotaxic
+    % (CCF [AP,DV,ML], re-order for transform to [ML,AP,DV]
     curr_probe_positions_bregma =  ...
         reshape(transformPointsForward(gui_data.ccf_bregma_tform, ...
-        reshape(probe_positions_ccf{curr_probe},3,[])')', ...
+        reshape(probe_positions_ccf{curr_probe}([3,1,2],:),3,[])')', ...
         size(probe_positions_ccf{curr_probe}));
 
     % Move probe trajectory to align with probe
