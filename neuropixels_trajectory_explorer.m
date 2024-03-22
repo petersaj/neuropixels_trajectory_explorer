@@ -350,7 +350,7 @@ switch eventdata.Key
         elseif any(strcmp(eventdata.Modifier,'control'))
             gui_data.probe(gui_data.selected_probe).angle = ...
                 mod(gui_data.probe(gui_data.selected_probe).angle + ...
-                [0;0;step_size_rotation],360);
+                [0;0;-step_size_rotation],360);
             update_probe_flag = true;
         end
     case 'rightarrow'
@@ -361,7 +361,7 @@ switch eventdata.Key
         elseif any(strcmp(eventdata.Modifier,'control'))
             gui_data.probe(gui_data.selected_probe).angle = ...
                 mod(gui_data.probe(gui_data.selected_probe).angle + ...
-                [0;0;-step_size_rotation],360);
+                [0;0;+step_size_rotation],360);
             update_probe_flag = true;
         end
 end
@@ -671,7 +671,7 @@ trajectory_vector = cell2mat( ...
     diff(trajectory_vector(3,:)));
 
 % Get probe shank coordinates relative to rotation
-probe_rotation_rad = deg2rad(gui_data.probe(gui_data.selected_probe).angle(3));
+probe_rotation_rad = -deg2rad(gui_data.probe(gui_data.selected_probe).angle(3));
 probe_angle_rad = [probe_rotation_rad, ...
     pi/2-trajectory_elevation_sph, ...
     trajectory_azimuth_sph+pi/2];
