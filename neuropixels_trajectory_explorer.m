@@ -432,7 +432,7 @@ if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
         trajectory_camera_vector = trajectory_position(1,:) - curr_campos;
 
         % Get the vector to plot the plane in (along with probe vector)
-        plot_vector = cross(trajectory_camera_vector,probe_position(1,:));
+        plot_vector = cross(trajectory_camera_vector,diff(trajectory_position,[],1));
     end
 
     % Get the normal vector of the plane
