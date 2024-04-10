@@ -1029,7 +1029,7 @@ end
 
 % Select probe type (if not input)
 if nargin < 4 || isempty(probe_type)
-    probe_types = {'Neuropixels 1.0','Neuropixels 2.0'};
+    probe_types = {'Neuropixels 1.0','Neuropixels 2.0','Cambridge NeuroTech'};
     [probe_type_idx,probe_type_selected] = listdlg( ...
         'PromptString',sprintf('Probe %d: choose type',new_probe_idx), ...
         'ListString',probe_types, ...
@@ -1060,9 +1060,29 @@ switch probe_type
         shank_vector = permute(probe_default_vector.*probe_length,[3,2,1]);
     case 'Neuropixels 2.0'
         probe_length = 3.840;
-        shank_spacing = [((0:3)*0.25);zeros(1,4);zeros(1,4)];
+        shank_x = (0:3)*0.25;
         shank_vector = permute(probe_default_vector.*probe_length + ...
-            permute(shank_spacing,[1,3,2]),[2,3,1]);
+            permute(padarray(shank_x,[2,0],0,'post'),[1,3,2]),[2,3,1]);
+    case 'Cambridge NeuroTech'
+        [json_file,json_path] = uigetfile('*.json','Select Cambridge NeuroTech JSON file...');
+        probe_info = jsondecode(fileread(fullfile(json_path,json_file)));
+
+        switch probe_info.probes.si_units
+            case 'um'
+                probe_scaling = 1000;
+            case 'mm'
+                probe_scaling = 1;
+        end
+
+        probe_length = range(probe_info.probes.contact_positions(:,2))/probe_scaling;
+
+        [~,~,shank_id] = unique(probe_info.probes.shank_ids);
+        shank_x = reshape(accumarray(shank_id, ...
+            probe_info.probes.contact_positions(:,1), ...
+            [max(shank_id),1],@mean),1,[])/probe_scaling;
+
+        shank_vector = permute(probe_default_vector.*probe_length + ...
+            permute(padarray(shank_x,[2,0],0,'post'),[1,3,2]),[2,3,1]);
 end
 
 % Draw probe
@@ -2542,7 +2562,7 @@ function select_probe(h,eventdata,probe_atlas_gui)
 gui_data = guidata(probe_atlas_gui);
 
 % Get index of clicked probe
-selected_probe_idx = cellfun(@(x) any(h == x),{gui_data.probe.line});
+selected_probe_idx = cellfun(@(x) any(ismember(h,x)),{gui_data.probe.line});
 
 % Color probe/axes by selected/unselected
 selected_color = [0,0,1];
