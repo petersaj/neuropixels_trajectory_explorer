@@ -2178,7 +2178,7 @@ writeline(gui_data.connection.manipulator.client,'ANGLE');
 scientifica_elevation_angle = str2num(readline(gui_data.connection.manipulator.client));
 % (convert coordinate order and direction)
 probe_tip = (scientifica_position([2,1,3]).*[1,-1,-1])'/10000; % reports as 1/10 microns
-probe_angle = [90,scientifica_elevation_angle]; % TO DO: currently assume 90 azimuth
+probe_angle = [90,scientifica_elevation_angle,0]; % TO DO: currently assume 90 azimuth and no rotation
 
 % (using length of recording sites, not full length of the probe from VCS)
 [x,y,z] = sph2cart( ...
@@ -2188,10 +2188,10 @@ probe_angle = [90,scientifica_elevation_angle]; % TO DO: currently assume 90 azi
 probe_top = probe_tip + [x; y; z];
 
 % Set probe vector
-probe_vector = [probe_top, probe_tip] ;
+probe_vector = [probe_top, probe_tip];
 
 % Update angles
-gui_data.probe.angle{1} = probe_angle;
+gui_data.probe(1).angle = probe_angle;
 
 % Change probe location
 set(gui_data.probe(1).line, ...
@@ -2218,7 +2218,7 @@ probe_ref_bottom = probe_ref_top + [x,y,z];
 
 trajectory_vector = [probe_ref_top;probe_ref_bottom]';
 
-set(gui_data.probe.trajectory(1), ...
+set(gui_data.probe(1).trajectory(1), ...
     'XData',trajectory_vector(1,:), ...
     'YData',trajectory_vector(2,:), ...
     'ZData',trajectory_vector(3,:));
