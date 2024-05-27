@@ -52,6 +52,10 @@ elseif isdeployed
     if isempty(allen_atlas_path)
         % (use uigetdir_workaround: matlab-issued workaround for R2018a bug)
         allen_atlas_path = uigetdir_workaround([],'Select folder with Allen CCF');
+    end
+
+    ccf_present = false;
+    while ccf_present == false
         tv_fn = [allen_atlas_path filesep 'template_volume_10um.npy'];
         av_fn = [allen_atlas_path filesep 'annotation_volume_10um_by_index.npy'];
         st_fn = [allen_atlas_path filesep 'structure_tree_safe_2017.csv'];
@@ -62,11 +66,15 @@ elseif isdeployed
 
         ccf_files = {tv_fn,av_fn,st_fn};
         ccf_exist = [tv_exist,av_exist,st_exist];
+
         if any(~ccf_exist)
             % If CCF not present in specified directory, error out
             errordlg([{'Allen CCF files not found: '}, ...
-                ccf_files(~ccf_exist)],'Allen CCF not found');
-            return
+                ccf_files(~ccf_exist)],'Allen CCF not found, select path again');
+            allen_atlas_path = uigetdir_workaround([],'Allen CCF not found, select folder again:');
+            if allen_atlas_path == 0
+                return
+            end
         else
             % If all CCF files present, save path for future
             nte_paths.allen_atlas_path = allen_atlas_path;
