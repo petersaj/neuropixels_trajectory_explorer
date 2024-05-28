@@ -55,7 +55,7 @@ elseif isdeployed
     end
 
     ccf_present = false;
-    while ccf_present == false
+    while ~ccf_present
         tv_fn = [allen_atlas_path filesep 'template_volume_10um.npy'];
         av_fn = [allen_atlas_path filesep 'annotation_volume_10um_by_index.npy'];
         st_fn = [allen_atlas_path filesep 'structure_tree_safe_2017.csv'];
@@ -80,6 +80,7 @@ elseif isdeployed
             nte_paths.allen_atlas_path = allen_atlas_path;
             nte_paths_fn = which('nte_paths.mat');
             save(nte_paths_fn,'nte_paths');
+            ccf_present = true;
         end
     end
 end
