@@ -806,6 +806,7 @@ end
 probe_area_boundaries = cell(n_shanks,1);
 probe_area_centers = cell(n_shanks,1);
 probe_area_labels = cell(n_shanks,1);
+probe_area_hexcolors = cell(n_shanks,1);
 for curr_shank = 1:n_shanks
 
     shank_areas_plot = probe_areas_plot(:,curr_shank);
@@ -823,7 +824,8 @@ for curr_shank = 1:n_shanks
         probe_areas_plot_depth(shank_areas_centers_idx);
     probe_area_labels{curr_shank} = ...
         gui_data.st.(gui_data.display_region_name)(probe_areas_plot(shank_areas_centers_idx,curr_shank));
-
+    probe_area_hexcolors{curr_shank} = ...
+        probe_areas_hexcolors(shank_areas_centers_idx);
 end
 
 % Update area plot and labels
@@ -919,12 +921,11 @@ set(gui_data.probe_coordinates_text,'String',probe_text(cellfun(@(x) ~isempty(x)
 % If recording software is connected, send areas for display
 if isfield(gui_data,'connection') && ...
         isfield(gui_data.connection,'recording')
-
     send_recording_areas(gui_data, ...
-        probe_depths, ...
-        trajectory_area_boundaries, ...
-        trajectory_area_labels, ...
-        trajectory_area_hexcolors(trajectory_area_centers_idx));
+        probe_depth, ...
+        probe_area_boundaries, ...
+        probe_area_labels, ...
+        probe_area_hexcolors);
 end
 
 % Upload gui_data
@@ -2395,7 +2396,7 @@ switch gui_data.connection.recording.software
 
     case 'Open Ephys'
         % Open Ephys area conventions:
-        % <probe_name>;<start_index_1>-<end_index_1>,<region_ID_1>,<hex_color_1>;<start_index_2>-<end_index_2>,...
+        % <probe_name>;<start_index_1>-<end_index_1>,<region_ID_1>,<hex_color_1>;<start_index_2>-<end_index_2>,...;
         %
         % Example:
         % ProbeA;0-69,PT,FF909F;70-97,PVT,FF909F;98-161,-,000000;162-173,-,000000,174-185,SF,90CBED;...
@@ -2404,11 +2405,18 @@ switch gui_data.connection.recording.software
         % given region, ideally going all the way up the probe. The Probe Viewer
         % will then display a subset depending on which electrodes are selected.
 
+        %%% NOTE: not sure how to send multi-shank at the moment, just send
+        %%% the first shank's info: 
+        use_shank = 1;
+        area_boundaries = area_boundaries{use_shank};
+        area_labels = area_labels{use_shank};
+        area_hexcolors = area_hexcolors{use_shank};
+
         % Calculate the depths of each site along the trajectory
-        n_sites = 1000;
+        n_sites = 960;
         site_y_spacing = 0.02;
         probe_sites = reshape(repmat(((1:n_sites/2)-1)*site_y_spacing,2,1),[],1);
-        probe_sites_depth = sort(probe_depth(2) - probe_sites);
+        probe_sites_depth = sort(probe_depth - probe_sites);
         probe_sites_depth_bins = [probe_sites_depth - site_y_spacing/2; ...
             probe_sites_depth(end) + site_y_spacing/2];
 
@@ -2462,33 +2470,35 @@ switch gui_data.connection.recording.software
         warning(orig_warning);
 
         % If selected probe index is more than number of SpikeGLX: do nothing
-        if gui_data.selected_probe > length(spike_glx_probelist_parsed)
+        if gui_data.selected_probe > length(spikeglx_probelist)
             return
         end
 
         % Get area depths relative to probe tip
         % (SpikeGLX is microns from tip, so add in tip length)
         tip_length = 175;
-        area_boundaries_um = -(area_boundaries-probe_depth(2))*1000 + tip_length;
+        area_boundaries_um = cellfun(@(bounds) -(bounds-probe_depth)*1000 + ...
+            tip_length,area_boundaries,'uni',false);
 
         % Colors: hex to RGB
-        area_rgbcolors = cell2mat(cellfun(@(x) ...
+        area_rgbcolors = cellfun(@(hex) cell2mat(cellfun(@(x) ...
             hex2dec({x(1:2),x(3:4),x(5:6)})', ...
-            area_hexcolors,'uni',false));
+            hex,'uni',false)),area_hexcolors,'uni',false);
 
         % (note: SpikeGLX zero indexes probe/shank)
-        areas_send_txt = [sprintf('[%d,%d]', ...
-            gui_data.probe(gui_data.selected_probe).recording_slot-1,0), ...
+        areas_send_txt = arrayfun(@(shank) [sprintf('[%d,%d]', ...
+            gui_data.probe(gui_data.selected_probe).recording_slot-1,shank-1), ...
             cell2mat(arrayfun(@(x) sprintf('(%d,%d,%g,%g,%g,%s)', ...
-            area_boundaries_um(x+1),area_boundaries_um(x)-1, ...
-            area_rgbcolors(x,:), area_labels{x}), ...
-            (1:length(area_boundaries_um)-1)','uni',false)')];
+            area_boundaries_um{shank}(x+1),area_boundaries_um{shank}(x)-1, ...
+            area_rgbcolors{shank}(x,:), area_labels{shank}{x}), ...
+            (1:length(area_boundaries_um{shank})-1)','uni',false)')], ...
+            1:length(area_boundaries),'uni',false);
 
         % Send areas to SpikeGLX
         % (sends warning about connection: turn warnings off/on to avoid)
         orig_warning = warning;
         warning('off','all')
-        SetAnatomy_Pinpoint(gui_data.connection.recording.client,areas_send_txt);
+        cellfun(@(txt) SetAnatomy_Pinpoint(gui_data.connection.recording.client,txt),areas_send_txt);
         warning(orig_warning);
 
         % SpikeGLX TO DO:
