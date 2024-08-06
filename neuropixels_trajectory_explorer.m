@@ -1620,7 +1620,13 @@ for curr_probe = 1:n_probes
 end
 
 % Get areas along each probe
-% (mostly copied from update_area - ideally don't copy code)
+
+% (get max length across the brain)
+ml_lim = xlim(gui_data.handles.axes_atlas);
+ap_lim = ylim(gui_data.handles.axes_atlas);
+dv_lim = zlim(gui_data.handles.axes_atlas);
+max_brain_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
+
 probe_areas = cell(n_probes,1);
 for curr_probe = 1:n_probes
 
@@ -1631,102 +1637,60 @@ for curr_probe = 1:n_probes
 
     n_shanks = size(probe_vector,3);
 
-    % Interpolate to extremes of probe range
-    ml_lim = xlim(gui_data.handles.axes_atlas);
-    ap_lim = ylim(gui_data.handles.axes_atlas);
-    dv_lim = zlim(gui_data.handles.axes_atlas);
-    max_ref_length = norm([range(ap_lim);range(dv_lim);range(ml_lim)]);
-
-    sample_points = (-max_ref_length:0.001:max_ref_length)';
-    probe_sample_points_bregma = reshape( ...
-        interp1([0,gui_data.probe(curr_probe).length], ...
-        reshape(probe_vector,2,[]), ...
-        sample_points,'linear','extrap'), ...
-        [length(sample_points),size(probe_vector,[2,3])]);
-
-    probe_sample_points_ccf_flat = ...
-        round(transformPointsInverse(gui_data.ccf_bregma_tform, ...
-        reshape(permute(probe_sample_points_bregma,[1,3,2]),[],3)));
-
-    inbounds_idx = all(probe_sample_points_ccf_flat > 0 & ...
-        probe_sample_points_ccf_flat <= size(gui_data.av,[3,1,2]),2);
-
-    probe_sample_ccf_idx = ...
-        sub2ind(size(gui_data.av), ...
-        probe_sample_points_ccf_flat(inbounds_idx,2), ...
-        probe_sample_points_ccf_flat(inbounds_idx,3), ...
-        probe_sample_points_ccf_flat(inbounds_idx,1));
-
-    probe_av_idx = ones(length(sample_points),n_shanks);
-    probe_av_idx(inbounds_idx) = gui_data.av(probe_sample_ccf_idx);
-
-    % Only plot areas that have index >1 (in-brain)
-    plot_probe_areas_idx = find(any(probe_av_idx > 1,2));
-    probe_areas_plot = probe_av_idx(plot_probe_areas_idx,:);
-
-    % Get insertion coordinate
-    ref_shank = gui_data.probe(curr_probe).ref_shank;
-    insertion_point = probe_sample_points_bregma( ...
-        plot_probe_areas_idx(find(probe_areas_plot(:,ref_shank) > 1,1,'first')),:,ref_shank);
-
-    if isempty(insertion_point)
-        % (don't update if there isn't an insertion point)
-        set(gui_data.probe_coordinates_text,'String','Probe trajectory is outside brain');
-        return
-    end
-
-    % Get current depth of probe relative to insertion coordinate
-    probe_depth = pdist2(insertion_point,probe_vector(2,:,ref_shank));
-
-    % Get area depths relative to insertion coordinate
-    probe_areas_plot_depth = pdist2(insertion_point, ...
-        probe_sample_points_bregma(plot_probe_areas_idx,:,ref_shank))';
-
-    % Get colors for all areas (draw white lines between areas)
-    probe_areas_hexcolors = gui_data.st.color_hex_triplet(probe_areas_plot);
-    probe_areas_rgbcolors = cell2mat(cellfun(@(x) ...
-        permute(hex2dec({x(1:2),x(3:4),x(5:6)})'./255,[1,3,2]), ...
-        probe_areas_hexcolors,'uni',false));
-    for curr_shank = 1:n_shanks
-        probe_areas_rgbcolors(imdilate(boundarymask( ...
-            probe_areas_plot(:,curr_shank)),ones(20,1)),curr_shank,:) = 1;
-    end
-
-    % Get depth boundaries and structure tree entries for all regions
-    if ~isfield(gui_data,'display_region_name')
-        gui_data.display_region_name = 'acronym';
-    end
-
-    probe_area_boundaries = cell(n_shanks,1);
-    probe_area_st = cell(n_shanks,1);
+    shank_areas = cell(n_shanks,1);
     for curr_shank = 1:n_shanks
 
-        shank_areas_plot = probe_areas_plot(:,curr_shank);
-        shank_areas_boundaries_idx = intersect(unique( ...
-            [find(shank_areas_plot ~= 1,1,'first'); ...
-            find(diff(shank_areas_plot) ~= 0); ...
-            find(shank_areas_plot ~= 1,1,'last')]), ...
-            find(shank_areas_plot ~= 1));
-        shank_areas_centers_idx = round(shank_areas_boundaries_idx(1:end-1) + ...
-            diff(shank_areas_boundaries_idx)/2);
+        shank_vector = probe_vector(:,:,curr_shank);
 
-        probe_area_bins = ...
-            probe_areas_plot_depth(shank_areas_boundaries_idx);
+        shank_sample_coords_bregma = interp1([0,norm(diff(shank_vector,[],1))],shank_vector, ...
+            -max_brain_length:0.001:max_brain_length,'linear','extrap');
 
-        probe_area_boundaries{curr_shank} = ...
-            [probe_area_bins(1:end-1),probe_area_bins(2:end)];
-        probe_area_st{curr_shank} = ...
-            gui_data.st(probe_areas_plot(shank_areas_centers_idx,curr_shank),:);
+        % Transform bregma to CCF coordinates and re-order to CCF orientation
+        shank_sample_coords_ccf_apmldv = round( ...
+            transformPointsInverse(gui_data.ccf_bregma_tform, ...
+            shank_sample_coords_bregma));
+        shank_sample_coords_ccf = shank_sample_coords_ccf_apmldv(:,[2,3,1]);
+
+        coord_inbounds = find(all(shank_sample_coords_ccf > 0 & ...
+            shank_sample_coords_ccf <= size(gui_data.av),2));
+
+        shank_sample_idx_ccf = ...
+            sub2ind(size(gui_data.av), ...
+            shank_sample_coords_ccf(coord_inbounds,1), ...
+            shank_sample_coords_ccf(coord_inbounds,2), ...
+            shank_sample_coords_ccf(coord_inbounds,3));
+
+        % Get boundaries of areas and area IDs
+        shank_sample_areas = gui_data.av(shank_sample_idx_ccf);
+
+        shank_sample_areas_brainidx = find(shank_sample_areas ~= 1);
+        shank_sample_area_boundaries = ...
+            [1;find(diff(double(shank_sample_areas(shank_sample_areas_brainidx)))~=0)+1; ...
+            length(shank_sample_areas_brainidx)];
+        shank_area_idx = shank_sample_areas(shank_sample_areas_brainidx(shank_sample_area_boundaries(1:end-1)));
+
+        % Get distance from tip for each sample coordinate
+        % (signed distance: towards tip +, away from tip -)
+        stored_sample_idx = coord_inbounds(shank_sample_areas_brainidx(shank_sample_area_boundaries));
+        shank_tip_distance = vecnorm((shank_vector(2,:) - ...
+            shank_sample_coords_bregma(stored_sample_idx,:))')';
+        shank_direction = sign(norm(diff(shank_vector,[],1)) - ...
+            (vecnorm((shank_vector(1,:) - ...
+            shank_sample_coords_bregma(stored_sample_idx,:))')'));
+
+        shank_tip_distance_signed = shank_tip_distance.*shank_direction;
+
+        % Store probe areas and boundaries (in distance from tip)
+        curr_shank_areas = gui_data.st(shank_area_idx,:);
+        curr_shank_areas.tip_distance = ...
+            [shank_tip_distance_signed(1:end-1), ...
+            shank_tip_distance_signed(2:end)];
+        curr_shank_areas.probe_shank(:) = curr_shank;
+        shank_areas{curr_shank} = curr_shank_areas;
 
     end
 
-    % Concatenate across shanks and store
-    curr_probe_areas = vertcat(probe_area_st{:});
-    curr_probe_areas.probe_depth = vertcat(probe_area_boundaries{:});
-    curr_probe_areas.probe_shank = cell2mat(cellfun(@(shank,areas) ...
-        repmat(shank,size(areas,1),1),num2cell(1:n_shanks)',probe_area_st,'uni',false));
-
-    probe_areas{curr_probe} = curr_probe_areas;
+    probe_areas{curr_probe} = vertcat(shank_areas{:});
 
 end
 
