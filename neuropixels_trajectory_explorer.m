@@ -416,8 +416,10 @@ function update_slice(probe_atlas_gui,varargin)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
-% Only update the slice if it's visible
-if strcmp(gui_data.handles.slice_plot(1).Visible,'on')
+% Only update the slice if it's visible and a probe is selected
+if strcmp(gui_data.handles.slice_plot(1).Visible,'on') && ...
+        isfield(gui_data,'selected_probe') && ...
+        ~isempty(gui_data.selected_probe)
 
     % Get trajectory and probe location
     trajectory_position = cell2mat(get( ...
@@ -1459,6 +1461,11 @@ function visibility_av_slice(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
 
+% If no probes are selected, do nothing
+if ~isfield(gui_data,'selected_probe') || isempty(gui_data.selected_probe)
+    return
+end
+
 switch h.Checked; case 'on'; new_visibility = 'off'; case 'off'; new_visibility = 'on'; end;
 set(gui_data.handles.slice_plot,'Visible',new_visibility);
 
@@ -1481,6 +1488,11 @@ end
 function visibility_tv_slice(h,eventdata,probe_atlas_gui)
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
+
+% If no probes are selected, do nothing
+if ~isfield(gui_data,'selected_probe') || isempty(gui_data.selected_probe)
+    return
+end
 
 switch h.Checked; case 'on'; new_visibility = 'off'; case 'off'; new_visibility = 'on'; end;
 set(gui_data.handles.slice_plot,'Visible',new_visibility);
