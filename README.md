@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/429406115.svg)](https://zenodo.org/badge/latestdoi/429406115)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo-blue.svg)](https://zenodo.org/badge/latestdoi/429406115)
 
 # Neuropixels trajectory explorer
 Neuropixels trajectory explorer with the Allen CCF mouse atlas 
