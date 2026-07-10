@@ -7,9 +7,6 @@
 % Instructions for use:
 % https://github.com/petersaj/neuropixels_trajectory_explorer
 
-% TO DO 2.0 update: 
-% - recording connection
-
 function neuropixels_trajectory_explorer
 
 %% Checks and initialize
