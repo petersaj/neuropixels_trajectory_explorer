@@ -775,7 +775,8 @@ if isempty(insertion_point)
 end
 
 % Get current depth of probe relative to insertion coordinate
-probe_depth = pdist2(insertion_point,probe_vector(2,:,ref_shank));
+probe_depth = pdist2(insertion_point,probe_vector(2,:,ref_shank)).* ...
+    sign(probe_vector(2,3,ref_shank) - insertion_point(3));
 
 % Get area depths relative to insertion coordinate
 probe_areas_plot_depth = pdist2(insertion_point, ...
