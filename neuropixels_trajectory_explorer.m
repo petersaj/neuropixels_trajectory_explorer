@@ -230,6 +230,14 @@ view_button_h(end+1) = uicontrol('Parent',probe_atlas_gui,'Style','pushbutton','
     'Units','normalized','Position',button_position,'String','Horizontal','Callback',{@view_horizontal,probe_atlas_gui});
 align(view_button_h,'fixed',0.1,'middle');
 
+%% Create TCP server
+% (currently used only to listen for external save command)
+
+% Port = 27683 (APNTE on keypad)
+connection_tcpserver = tcpserver("0.0.0.0",27683);
+configureCallback(connection_tcpserver,"terminator", ...
+    @(src,event,x) read_incoming(src,event,probe_atlas_gui));
+
 
 %% Store initial GUI data
 gui_data.tv = tv; % Intensity atlas
@@ -251,6 +259,7 @@ gui_data.handles.probe_areas_plot = probe_areas_plot; % Color-coded probe region
 gui_data.handles.slice_plot = surface(axes_atlas,'EdgeColor','none','Visible','off'); % Slice on 3D atlas
 gui_data.handles.slice_volume = 'tv'; % The volume shown in the slice
 gui_data.probe_coordinates_text = probe_coordinates_text; % Probe coordinates text
+gui_data.handles.connection_tcpserver = connection_tcpserver; % TCP server
 
 % Make 3D rotation the default state
 h = rotate3d(axes_atlas);
@@ -1599,7 +1608,7 @@ guidata(probe_atlas_gui,gui_data);
 end
 
 
-function save_probe_positions(h,eventdata,probe_atlas_gui)
+function save_probe_positions(h,eventdata,probe_atlas_gui,save_filename)
 
 % Get guidata
 gui_data = guidata(probe_atlas_gui);
@@ -1704,9 +1713,15 @@ probe_properties = struct( ...
     'probe_type',{gui_data.probe.type}, ...
     'rotation_angle',num2cell(probe_angles_cat(3,:)));
 
-% Choose file location and save
-[save_file,save_path] = uiputfile('probe_positions.mat','Save probe positions as...');
-save_filename = fullfile(save_path,save_file);
+% Prompt user for save filename if not entered
+if nargin == 3 || isempty(save_filename)
+    [save_file,save_path] = uiputfile('probe_positions.mat','Save probe positions as...');
+    save_filename = fullfile(save_path,save_file);
+end
+if ~exist(fileparts(save_filename),'dir')
+    mkdir(fileparts(save_filename));
+end
+
 save(save_filename,'probe_positions_ccf','probe_areas','probe_properties');
 
 end
@@ -2578,6 +2593,21 @@ else
     flag = false;
 end
 end
+
+
+function read_incoming(source,eventdata,probe_atlas_gui)
+% Read incoming messages from TCP clients
+
+incoming_message = jsondecode(readline(source));
+
+% Save command
+if strcmp(incoming_message.message,'save')
+    save_probe_positions([],[],probe_atlas_gui,incoming_message.save_filename)
+end
+
+end
+
+
 
 %% Load and format structure tree
 % (copied wholesale from cortex-lab/allenCCF/Browsing Functions/loadStructureTree to remove
